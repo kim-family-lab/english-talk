@@ -26,6 +26,19 @@
   .kid-btn:active { transform: translateY(3px); box-shadow: 0 3px 0 rgba(0,0,0,.12); }
   #settingsBtn { position: absolute; top: 14px; right: 14px; background: none; border: none; font-size: 26px; opacity: .6; }
 
+  /* Topics */
+  #topics { overflow-y: auto; }
+  .topicHead { text-align: center; padding: 6px 16px 0; }
+  .topicHead h2 { margin: 6px 0 2px; font-size: 24px; }
+  .topicHead p { margin: 0; color: var(--muted); font-size: 15px; }
+  #topicGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px; }
+  .topic { border: none; border-radius: 20px; padding: 16px 10px; background: var(--card); box-shadow: 0 4px 0 rgba(0,0,0,.08); font-size: 17px; font-weight: 700; color: var(--text); display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .topic .ic { font-size: 38px; }
+  .topic.used { opacity: .35; filter: grayscale(1); }
+  .topic.used::after { content: "✔ Done"; font-size: 13px; font-weight: 600; }
+  .topic.random { grid-column: 1 / -1; color: #fff; font-size: 20px; }
+  .progress { text-align: center; color: var(--muted); font-size: 14px; padding-bottom: 20px; }
+
   /* Chat */
   .topbar { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--card); border-bottom: 1px solid var(--line); }
   .topbar .back { border: none; background: none; font-size: 24px; }
@@ -66,6 +79,20 @@
   <button class="kid-btn leo" data-kid="leo"><span class="pic">🐱</span>Leo</button>
 </section>
 
+<!-- 주제 고르기 화면 -->
+<section id="topics" class="screen">
+  <div class="topbar">
+    <button class="back" id="topicBackBtn">←</button>
+    <div class="who" id="topicWho"></div>
+  </div>
+  <div class="topicHead">
+    <h2>What do you want to talk about?</h2>
+    <p id="topicSub"></p>
+  </div>
+  <div id="topicGrid"></div>
+  <div class="progress" id="topicProgress"></div>
+</section>
+
 <!-- 대화 화면 -->
 <section id="chat" class="screen">
   <div class="topbar">
@@ -94,7 +121,7 @@
   </div>
   <div>
     <label for="model">모델 이름</label>
-    <input id="model" placeholder="예: gemini-2.5-flash-lite">
+    <input id="model" placeholder="예: gemini-3.5-flash-lite">
     <div class="hint">AI Studio에서 무료로 표시되는 Flash-Lite 계열 모델 이름을 그대로 복사해 넣으세요.</div>
   </div>
   <div class="row">
@@ -113,7 +140,18 @@ const KIDS = {
 Talk like a fun, kind friend a little older than her.
 - Use simple but natural English. Replies of 2-3 short sentences.
 - Ask only one question at a time, and keep the conversation going.
-- She can try longer sentences, so gently encourage her to say a bit more.`
+- She can try longer sentences, so gently encourage her to say a bit more.`,
+    topics: [
+      { id: "kalimba", icon: "🎶", title: "Kalimba & Music", hint: "Talk about playing the kalimba, favorite songs, practicing, and music she likes." },
+      { id: "friends", icon: "👭", title: "Friends", hint: "Talk about friends, playing together, being kind, and fun things with friends. Keep it about friendship only." },
+      { id: "school", icon: "🏫", title: "My School Day", hint: "Talk about classes, favorite subjects, lunch, and what happened at school." },
+      { id: "food", icon: "🍜", title: "Favorite Food", hint: "Talk about favorite foods, snacks, Korean food, and what she likes to eat." },
+      { id: "animals", icon: "🐶", title: "Animals & Pets", hint: "Talk about animals, pets, cute animals, and how to take care of pets." },
+      { id: "drawing", icon: "🎨", title: "Drawing & Crafts", hint: "Talk about drawing, colors, making things, and her art." },
+      { id: "science", icon: "🔬", title: "Science Fun", hint: "Talk about fun science facts and easy experiments from 5th-grade science class." },
+      { id: "travel", icon: "✈️", title: "Travel", hint: "Talk about trips, places she has been, and places she wants to visit." },
+      { id: "dreams", icon: "🌟", title: "Dreams for the Future", hint: "Talk about what she wants to be or do when she grows up." }
+    ]
   },
   leo: {
     name: "Leo", emoji: "🐱", color: "var(--leo)", soft: "var(--leo-soft)",
@@ -122,9 +160,20 @@ Talk like a fun, kind friend a little older than her.
 Talk like a gentle, cheerful teacher.
 - Use very easy words and very short sentences. Replies of 1-2 short sentences.
 - Ask only one simple question at a time. Yes/no or choice questions are good.
-- Praise his effort often ("Great job!", "Nice!").`
+- Praise his effort often ("Great job!", "Nice!").`,
+    topics: [
+      { id: "soccer", icon: "⚽", title: "Soccer", hint: "Talk about playing soccer, favorite positions, scoring goals, and soccer players." },
+      { id: "games", icon: "🎮", title: "Video Games", hint: "Talk about games he likes, characters, and what is fun about them. Keep it about kid-friendly games." },
+      { id: "memes", icon: "😂", title: "Funny Songs & Memes", hint: "Talk about funny kid memes and songs popular with Korean elementary kids, like 'Take the L', Italian Brainrot characters, and '6 7'. Be playful and silly, keep it kind and kid-friendly." },
+      { id: "family", icon: "👨‍👩‍👧‍👦", title: "My Family", hint: "Talk about family members and fun things the family does together." },
+      { id: "animals", icon: "🦁", title: "Animals", hint: "Talk about favorite animals, zoo animals, and what animals can do." },
+      { id: "cats", icon: "🐈", title: "Cats", hint: "Talk about cats, what cats like, and funny things cats do." },
+      { id: "food", icon: "🍕", title: "Favorite Food", hint: "Talk about favorite foods and snacks." },
+      { id: "weather", icon: "⛅", title: "Weather", hint: "Talk about today's weather, seasons, rain, snow, and what to wear." }
+    ]
   }
 };
+const RANDOM_HINT = "There is no fixed topic. First ask if they have something they want to talk about today. If they say yes, talk about that (if it is suitable for a young child). If they don't know, suggest one fun surprise topic yourself.";
 
 const COMMON_RULES = `
 Rules for every reply:
@@ -142,7 +191,8 @@ const store = {
 };
 
 // ---------- 상태 ----------
-let kid = null, history = [], timeLeft = 0, timerId = null, timeUp = false, busy = false;
+let kid = null, kidId = null, topic = null, history = [], timeLeft = 0, timerId = null, timeUp = false, busy = false, turns = 0;
+const MIN_TURNS_TO_COUNT = 3; // 아이가 3번 이상 말해야 '한 주제'로 인정
 
 const $ = id => document.getElementById(id);
 function show(id) {
@@ -151,8 +201,51 @@ function show(id) {
 }
 
 // ---------- 화면 이동 ----------
-document.querySelectorAll(".kid-btn").forEach(b => b.onclick = () => startChat(b.dataset.kid));
+document.querySelectorAll(".kid-btn").forEach(b => b.onclick = () => showTopics(b.dataset.kid));
 $("backBtn").onclick = endChat;
+$("topicBackBtn").onclick = () => show("home");
+
+// ---------- 주제 (한 번 고른 주제는 잠금, 다 쓰면 초기화) ----------
+function usedTopics(k) {
+  try { return JSON.parse(store.get("used_" + k) || "[]"); } catch (e) { return []; }
+}
+function markTopicUsed() {
+  if (!topic || topic.id === "random") return;
+  const all = KIDS[kidId].topics.map(t => t.id);
+  let used = usedTopics(kidId).filter(id => all.includes(id));
+  if (!used.includes(topic.id)) used.push(topic.id);
+  if (used.length >= all.length) used = []; // 다 골랐으면 다시 처음부터
+  store.set("used_" + kidId, JSON.stringify(used));
+}
+
+function showTopics(k) {
+  if (!store.get("geminiKey") || !store.get("geminiModel")) {
+    alert("먼저 ⚙️ 설정에서 API 키와 모델 이름을 넣어 주세요.");
+    return;
+  }
+  kidId = k; kid = KIDS[k];
+  $("topicWho").textContent = kid.emoji + " " + kid.name;
+  $("topicSub").textContent = "Pick one! Done topics come back after you finish them all.";
+  const used = usedTopics(k);
+  const grid = $("topicGrid"); grid.innerHTML = "";
+  kid.topics.forEach(t => {
+    const b = document.createElement("button");
+    const isUsed = used.includes(t.id);
+    b.className = "topic" + (isUsed ? " used" : "");
+    b.disabled = isUsed;
+    b.innerHTML = '<span class="ic">' + t.icon + "</span>" + t.title;
+    b.onclick = () => startChat(t);
+    grid.appendChild(b);
+  });
+  const r = document.createElement("button");
+  r.className = "topic random"; r.style.background = kid.color;
+  r.innerHTML = '<span class="ic">🎲</span>Random';
+  r.onclick = () => startChat({ id: "random", icon: "🎲", title: "Random", hint: RANDOM_HINT });
+  grid.appendChild(r);
+  const done = used.filter(id => kid.topics.some(t => t.id === id)).length;
+  $("topicProgress").textContent = done + " / " + kid.topics.length + " topics done";
+  show("topics");
+}
 $("settingsBtn").onclick = () => { $("apiKey").value = store.get("geminiKey"); $("model").value = store.get("geminiModel"); show("settings"); };
 $("cancelSettings").onclick = () => show("home");
 $("saveSettings").onclick = () => {
@@ -161,14 +254,10 @@ $("saveSettings").onclick = () => {
   show("home");
 };
 
-function startChat(k) {
-  if (!store.get("geminiKey") || !store.get("geminiModel")) {
-    alert("먼저 ⚙️ 설정에서 API 키와 모델 이름을 넣어 주세요.");
-    return;
-  }
-  kid = KIDS[k]; history = []; timeUp = false;
+function startChat(t) {
+  topic = t; history = []; timeUp = false; turns = 0;
   $("messages").innerHTML = "";
-  $("whoLabel").textContent = kid.emoji + " " + kid.name;
+  $("whoLabel").textContent = kid.emoji + " " + kid.name + " · " + t.icon + " " + t.title;
   $("micBtn").style.background = kid.color;
   $("timer").style.background = kid.soft;
   timeLeft = kid.minutes * 60; drawTimer();
@@ -180,14 +269,18 @@ function startChat(k) {
   setInputs(true);
   show("chat");
   // AI가 먼저 인사
-  ask("(The conversation is starting. Greet " + kid.name + " warmly by name and ask one easy question to start talking.)", true);
+  const opener = topic.id === "random"
+    ? "(The conversation is starting. Greet " + kid.name + " warmly by name, then ask if there is something they want to talk about today.)"
+    : "(The conversation is starting. Greet " + kid.name + " warmly by name, say today's topic is \"" + topic.title + "\", and ask one easy question about it.)";
+  ask(opener, true);
 }
 
 function endChat() {
   clearInterval(timerId);
   stopListening();
   try { speechSynthesis.cancel(); } catch (e) {}
-  show("home");
+  if (timeUp || turns >= MIN_TURNS_TO_COUNT) markTopicUsed();
+  showTopics(kidId);
 }
 
 function drawTimer() {
@@ -211,7 +304,7 @@ function setInputs(on) {
 async function ask(text, hidden) {
   if (busy) return;
   busy = true; setInputs(false); setStatus("Thinking...");
-  if (!hidden) addMsg(text, "me");
+  if (!hidden) { addMsg(text, "me"); turns++; }
   history.push({ role: "user", parts: [{ text }] });
   try {
     const model = store.get("geminiModel");
@@ -221,7 +314,7 @@ async function ask(text, hidden) {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-goog-api-key": store.get("geminiKey") },
         body: JSON.stringify({
-          systemInstruction: { parts: [{ text: kid.prompt + COMMON_RULES }] },
+          systemInstruction: { parts: [{ text: kid.prompt + "\n\nToday's topic: " + topic.title + ". " + topic.hint + " Stay mostly on this topic, but it's okay to follow the child's interest if it is suitable." + COMMON_RULES }] },
           contents: history,
           generationConfig: { temperature: 0.8, maxOutputTokens: 200 }
         })
@@ -239,7 +332,7 @@ async function ask(text, hidden) {
     addMsg("⚠️ 연결 오류: " + err.message, "note");
   }
   busy = false;
-  if (timeUp) { setInputs(false); setStatus("Time's up! Great job today! 🎉"); }
+  if (timeUp) { setInputs(false); markTopicUsed(); topic = { ...topic, id: "random" }; setStatus("Time's up! Great job today! 🎉 Tap ← to go back."); }
   else { setInputs(true); setStatus("Tap the mic and talk!"); }
 }
 
