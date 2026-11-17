@@ -170,6 +170,7 @@
   <div class="stars" id="resStars"></div>
   <div id="resAttend"></div>
   <div class="card" id="resCheer"></div>
+  <div class="card levelUp" id="resEng" style="display:none"></div>
   <div class="card" id="resLevel" style="display:none"></div>
   <div class="card">
     <h3>✨ Today's expressions</h3>
@@ -191,6 +192,7 @@
     <div class="stat"><b id="bTotal">0</b><span>stickers</span></div>
     <div class="stat"><b id="bStreak">0</b><span>day streak 🔥</span></div>
     <div class="stat"><b id="bDays">0</b><span>days talked</span></div>
+    <div class="stat"><b id="bLevel">-</b><span>English level</span></div>
   </div>
   <div class="goal">
     <b id="goalText"></b>
@@ -244,14 +246,13 @@
 const KIDS = {
   lucy: {
     name: "Lucy", emoji: "🐷", color: "var(--lucy)", soft: "var(--lucy-soft)",
-    minutes: 10, rate: 1.0,
+    minutes: 10, rate: 1.0, startLevel: 3,
     // 처음 일주일 기본 기준 (이후엔 최근 평균으로 자동 조정)
     base: { turns: 10, words: 5, newWords: 5 },
     prompt: `You are a friendly English conversation buddy for Lucy, a 5th-grade girl in Korea (about 11 years old) who is learning English.
 Talk like a fun, kind friend a little older than her.
-- Use simple but natural English. Replies of 2-3 short sentences.
 - Ask only one question at a time, and keep the conversation going.
-- She can try longer sentences, so gently encourage her to say a bit more.`,
+- Gently encourage her to say a bit more.`,
     topics: [
       { id: "kalimba", icon: "🎶", title: "Kalimba & Music", hint: "Talk about playing the kalimba, favorite songs, practicing, and music she likes." },
       { id: "friends", icon: "👭", title: "Friends", hint: "Talk about friends, playing together, being kind, and fun things with friends. Keep it about friendship only." },
@@ -266,12 +267,11 @@ Talk like a fun, kind friend a little older than her.
   },
   leo: {
     name: "Leo", emoji: "🐱", color: "var(--leo)", soft: "var(--leo-soft)",
-    minutes: 5, rate: 0.85,
+    minutes: 5, rate: 0.85, startLevel: 1,
     base: { turns: 6, words: 3, newWords: 3 },
     prompt: `You are a warm, kind English conversation partner for Leo, a 3rd-grade boy in Korea (about 9 years old) who is learning English.
 Talk like a gentle, cheerful teacher.
-- Use very easy words and very short sentences. Replies of 1-2 short sentences.
-- Ask only one simple question at a time. Yes/no or choice questions are good.
+- Ask only one question at a time.
 - Praise his effort often ("Great job!", "Nice!").`,
     topics: [
       { id: "soccer", icon: "⚽", title: "Soccer", hint: "Talk about playing soccer, favorite positions, scoring goals, and soccer players." },
@@ -299,7 +299,46 @@ Rules for every reply:
 const LEVELS = [10, 30, 50];           // 레벨업 지점 (50 이후 30개마다)
 const LEARN_SESSIONS = 7;              // 이 횟수만큼은 기본 기준, 그 뒤로 평균 기준
 const MIN_TURNS_TO_COUNT = 3;          // 아이가 3번 이상 말해야 '한 주제'로 인정
-const DAILY_MAX = 2;                   // 하루에 끝까지 할 수 있는 대화 횟수 (3번째부터는 시작 불가)
+// ---------- 영어 레벨 (자동) ----------
+// 처음 PLACEMENT번은 시작 레벨로 대화 → 그 기록으로 레벨 자동 결정
+// 그 뒤: 레벨이 바뀐 뒤 3번 연속 별 3개면 ⬆, 2번 연속 별 1개면 ⬇ (내려갈 땐 아이에게 표시 안 함)
+const PLACEMENT = 3, MAX_LEVEL = 5;
+const LEVEL_GUIDE = {
+  1: "LANGUAGE LEVEL 1 (beginner): Use only very easy, common words. Say ONE short sentence (under 8 words), then one yes/no or this-or-that question (\"Do you like cats or dogs?\"). Repeat key words. If the child seems stuck, give a sample answer they can copy.",
+  2: "LANGUAGE LEVEL 2 (easy): Use easy words and 1-2 short sentences. Ask simple what/who/where questions. If the child seems stuck, offer two answer choices.",
+  3: "LANGUAGE LEVEL 3 (middle): Use simple, natural English in about 2 sentences. Ask what/where/when/why questions. Sometimes use one new useful word and explain it simply.",
+  4: "LANGUAGE LEVEL 4 (good): Use natural English in 2-3 sentences with some describing words. Ask open questions (why, how) and encourage the child to give reasons and details.",
+  5: "LANGUAGE LEVEL 5 (strong): Talk naturally like a friendly native-speaker kid, 2-3 sentences, with richer words in clear context. Ask for opinions, little stories, and comparisons."
+};
+function placeLevel(sessions) {
+  const w = sessions.reduce((a, x) => a + x.avgWords, 0) / sessions.length;
+  return w < 2.5 ? 1 : w < 4 ? 2 : w < 5.5 ? 3 : w < 7.5 ? 4 : 5;
+}
+function kidLevel(k) {
+  const s = loadStats(k);
+  return s.level || KIDS[k].startLevel;
+}
+// 대화를 마칠 때 호출: 레벨을 자동으로 정하거나 바꿈. 무엇이 바뀌었는지 돌려줌
+function updateLevel(k, s) {
+  const real = s.sessions.filter(x => x.stars > 0);   // 하루 제한 초과분 제외
+  if (!s.level) {
+    if (real.length < PLACEMENT) return null;
+    s.level = placeLevel(real.slice(-PLACEMENT)); s.levelAt = real.length;
+    s.levelHist = [{ day: today(), level: s.level, why: "placed" }];
+    return { kind: "placed", level: s.level };
+  }
+  const since = real.slice(s.levelAt || 0);
+  const last = n => since.slice(-n);
+  let kind = null;
+  if (s.level < MAX_LEVEL && since.length >= 3 && last(3).every(x => x.stars === 3)) { s.level++; kind = "up"; }
+  else if (s.level > 1 && since.length >= 2 && last(2).every(x => x.stars === 1)) { s.level--; kind = "down"; }
+  if (!kind) return null;
+  s.levelAt = real.length;
+  (s.levelHist = s.levelHist || []).push({ day: today(), level: s.level, why: kind });
+  return { kind, level: s.level };
+}
+
+const DAILY_MAX = 2;                  // 하루에 끝까지 할 수 있는 대화 횟수 (3번째부터는 시작 불가)
 function todayCount(k) { const d = today(); return loadStats(k).sessions.filter(x => x.day === d).length; }
 function limitReached(k) { return store.get("testMode") !== "1" && todayCount(k) >= DAILY_MAX; }
 const DEFAULT_PRIZES = ["아이스크림 🍦", "주말 게임 30분 🎮", "원하는 선물 🎁"];
@@ -536,7 +575,9 @@ async function callGemini(system, contents, config) {
 }
 
 function chatSystem() {
-  return kid.prompt + "\n\nToday's topic: " + topic.title + ". " + topic.hint +
+  return kid.prompt + "\n\n" + LEVEL_GUIDE[kidLevel(kidId)] +
+    " Follow this level for every reply. If the child clearly struggles, make it a little easier for the next reply." +
+    "\n\nToday's topic: " + topic.title + ". " + topic.hint +
     " Stay mostly on this topic, but it's okay to follow the child's interest if it is suitable." + COMMON_RULES;
 }
 
@@ -594,17 +635,27 @@ function finishSession() {
   for (let i = 0; i < sc.stars; i++) s.stickers.push({ type: "star", day });
   s.sessions.push({ day, topic: topic.title, turns: sc.turns, avgWords: sc.avgWords, newWords: sc.newWords, stars: sc.stars });
   s.words = [...new Set([...s.words, ...sc.fresh])].slice(-3000);
+  const lv = updateLevel(kidId, s);
   saveStats(kidId, s);
 
   // 레벨업 확인
   const after = s.stickers.length;
   const reached = levelFor(after).filter(p => p > before && p <= after);
 
-  renderResult(sc, firstToday, s, reached);
+  renderResult(sc, firstToday, s, reached, lv);
   loadExpressions();
 }
 
-function renderResult(sc, firstToday, s, reached) {
+function renderResult(sc, firstToday, s, reached, lv) {
+  // 영어 레벨: 올라가거나 처음 정해졌을 때만 보여 줌 (내려갈 때는 표시 안 함)
+  if (lv && (lv.kind === "up" || lv.kind === "placed")) {
+    $("resEng").style.display = "";
+    $("resEng").innerHTML = lv.kind === "up"
+      ? "<h3>⬆️ English Level Up!</h3><p>You are now <b>Level " + lv.level + "</b>! Your buddy will talk a little more like a big kid. 💪</p>"
+      : "<h3>🎯 Your English level is ready!</h3><p>You are <b>Level " + lv.level + "</b>. Keep talking to level up!</p>";
+  } else {
+    $("resEng").style.display = "none";
+  }
   $("resEmoji").textContent = kid.emoji;
   $("resTitle").textContent = (sc.stars === 3 ? "Amazing, " : sc.stars === 2 ? "Great job, " : "Good try, ") + kid.name + "!";
   $("resStars").innerHTML = [0, 1, 2].map(i =>
@@ -626,7 +677,7 @@ function renderResult(sc, firstToday, s, reached) {
   if (reached.length) {
     const p = reached[reached.length - 1];
     $("resLevel").className = "card levelUp"; $("resLevel").style.display = "";
-    $("resLevel").innerHTML = "<h3>🎉 LEVEL UP! " + p + " stickers!</h3><p>Show this to Mom or Dad!</p><p><b>🎁 " + escapeHtml(prizeFor(p)) + "</b></p>";
+    $("resLevel").innerHTML = "<h3>🎁 PRIZE TIME! " + p + " stickers!</h3><p>Show this to Mom or Dad!</p><p><b>🎁 " + escapeHtml(prizeFor(p)) + "</b></p>";
   } else {
     $("resLevel").style.display = "none";
   }
@@ -662,6 +713,7 @@ function showBoard() {
   $("bTotal").textContent = n;
   $("bStreak").textContent = currentStreak(s);
   $("bDays").textContent = s.days.length;
+  $("bLevel").textContent = s.level ? "Lv." + s.level : "🔍";
   $("goalText").textContent = "Next prize: " + goal + " stickers";
   $("goalFill").style.background = kid.color;
   $("goalFill").style.width = Math.round((n - prevGoal) / (goal - prevGoal) * 100) + "%";
@@ -697,7 +749,7 @@ function speak(text) {
       const u = new SpeechSynthesisUtterance(text);
       const v = pickVoice(); if (v) u.voice = v;
       u.lang = v ? v.lang : "en-US";
-      u.rate = kid.rate; u.pitch = 1.1;
+      u.rate = Math.min(1.1, kid.rate + (kidLevel(kidId) - 1) * 0.04); u.pitch = 1.1;
       u.onend = resolve; u.onerror = resolve;
       setTimeout(resolve, 20000); // 소리가 안 끝나도 멈추지 않게
       setStatus("🔊 Listening to " + kid.name + "'s buddy...");
