@@ -278,6 +278,9 @@ Rules for every reply:
 const LEVELS = [10, 30, 50];           // 레벨업 지점 (50 이후 30개마다)
 const LEARN_SESSIONS = 7;              // 이 횟수만큼은 기본 기준, 그 뒤로 평균 기준
 const MIN_TURNS_TO_COUNT = 3;          // 아이가 3번 이상 말해야 '한 주제'로 인정
+const DAILY_MAX = 2;                   // 하루에 끝까지 할 수 있는 대화 횟수 (3번째부터는 시작 불가)
+function todayCount(k) { const d = today(); return loadStats(k).sessions.filter(x => x.day === d).length; }
+function limitReached(k) { return store.get("testMode") !== "1" && todayCount(k) >= DAILY_MAX; }
 const DEFAULT_PRIZES = ["아이스크림 🍦", "주말 게임 30분 🎮", "원하는 선물 🎁"];
 
 // ---------- 저장소 (실패해도 동작하도록) ----------
@@ -411,14 +414,18 @@ function showTopics(k) {
   $("topicWho").textContent = kid.emoji + " " + kid.name;
   $("boardBtn").style.background = kid.soft;
   $("boardBtn").textContent = "⭐ " + loadStats(k).stickers.length;
-  $("topicSub").textContent = "Pick one! Done topics come back after you finish them all.";
+  const locked = limitReached(k), cnt = todayCount(k);
+  $("topicSub").textContent = locked
+    ? "You did " + DAILY_MAX + " talks today. Amazing! 🌙 See you tomorrow!"
+    : "Today: " + cnt + " / " + DAILY_MAX + " talks · Pick one!";
   const used = usedTopics(k);
   const grid = $("topicGrid"); grid.innerHTML = "";
+  grid.style.opacity = locked ? ".4" : "";
   kid.topics.forEach(t => {
     const b = document.createElement("button");
     const isUsed = used.includes(t.id);
     b.className = "topic" + (isUsed ? " used" : "");
-    b.disabled = isUsed;
+    b.disabled = isUsed || locked;
     b.innerHTML = '<span class="ic">' + t.icon + "</span>" + t.title;
     b.onclick = () => startChat(t);
     grid.appendChild(b);
@@ -426,6 +433,7 @@ function showTopics(k) {
   const r = document.createElement("button");
   r.className = "topic random"; r.style.background = kid.color;
   r.innerHTML = '<span class="ic">🎲</span>Random';
+  r.disabled = locked;
   r.onclick = () => startChat({ id: "random", icon: "🎲", title: "Random", hint: RANDOM_HINT });
   grid.appendChild(r);
   const done = used.filter(id => kid.topics.some(t => t.id === id)).length;
@@ -435,6 +443,7 @@ function showTopics(k) {
 
 // ---------- 대화 ----------
 function startChat(t) {
+  if (limitReached(kidId)) { showTopics(kidId); return; }
   topic = t; history = []; timeUp = false; finished = false; turns = 0; kidLines = [];
   $("messages").innerHTML = "";
   $("whoLabel").textContent = kid.emoji + " " + kid.name + " · " + t.icon + " " + t.title;
@@ -551,6 +560,9 @@ function finishSession() {
     s.lastDay = day; s.days.push(day);
     s.stickers.push({ type: "att", day });
   }
+  // 자정 무렵 등으로 이미 2번 한 뒤라면 별은 주지 않음 (테스트 모드 제외)
+  const overLimit = store.get("testMode") !== "1" && s.sessions.filter(x => x.day === day).length >= DAILY_MAX;
+  if (overLimit) sc.stars = 0;
   for (let i = 0; i < sc.stars; i++) s.stickers.push({ type: "star", day });
   s.sessions.push({ day, topic: topic.title, turns: sc.turns, avgWords: sc.avgWords, newWords: sc.newWords, stars: sc.stars });
   s.words = [...new Set([...s.words, ...sc.fresh])].slice(-3000);
