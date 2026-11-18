@@ -288,11 +288,11 @@
   </div>
   <div id="pBody"></div>
   <div class="psec">
-    <h3>🎁 상 설정 (스티커 30·70·120개)</h3>
-    <input id="prize1" type="text" placeholder="30개: 예) 아이스크림 🍦">
-    <input id="prize2" type="text" placeholder="70개: 예) 주말 게임 30분 🎮">
-    <input id="prize3" type="text" placeholder="120개: 예) 원하는 선물 🎁">
-    <div class="muted">120개 이후로는 50개마다 3번째 상이 다시 나옵니다. 모든 휴대폰에 함께 적용됩니다.</div>
+    <h3>🎁 상 설정 (스티커 70·140개, 이후 150개마다)</h3>
+    <input id="prize1" type="text" placeholder="70개 (약 2주): 예) 아이스크림 🍦">
+    <input id="prize2" type="text" placeholder="140개 (약 4주): 예) 주말 게임 30분 🎮">
+    <input id="prize3" type="text" placeholder="이후 150개마다 (약 한 달): 예) 원하는 선물 🎁">
+    <div class="muted">140개 이후로는 150개마다(290, 440...) 3번째 상이 나옵니다. 매일 2번 하면 약 2주, 4주, 그 뒤 한 달 간격입니다. 모든 휴대폰에 함께 적용됩니다.</div>
     <div class="row" style="margin-top:10px"><button class="btn" id="savePrizes">상 저장</button></div>
   </div>
   <div class="pbtns">
@@ -389,8 +389,8 @@ Rules for every reply:
 - Never ask for personal information like full name, school name, address, or phone number.
 - No emojis, no lists, no markdown. Your reply will be read aloud.`;
 
-const LEVELS = [30, 70, 120];          // 상 지점 (120 이후 50개마다)
-const PRIZE_STEP = 50;
+const LEVELS = [70, 140, 290];         // 상 지점: 약 2주, 4주, 이후 한 달(150개)마다
+const PRIZE_STEP = 150;
 const LEARN_SESSIONS = 7;              // 이 횟수만큼은 기본 기준, 그 뒤로 평균 기준
 const MIN_TURNS_TO_COUNT = 3;          // 아이가 3번 이상 말해야 '한 주제'로 인정
 // ---------- 영어 레벨 (자동) ----------
