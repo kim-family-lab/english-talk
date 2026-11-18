@@ -25,7 +25,8 @@
   #home { align-items: center; justify-content: center; padding: 24px 16px; gap: 20px; position: relative; }
   #home h1 { margin: 0 0 8px; font-size: 30px; }
   .kid-btn { width: 100%; max-width: 340px; border: none; border-radius: 28px; padding: 22px; display: flex; align-items: center; gap: 18px; font-size: 30px; font-weight: 700; color: #fff; box-shadow: 0 6px 0 rgba(0,0,0,.12); }
-  .kid-btn .pic { font-size: 64px; background: rgba(255,255,255,.35); border-radius: 50%; width: 92px; height: 92px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .kid-btn .pic { font-size: 64px; background: rgba(255,255,255,.35); border-radius: 50%; width: 92px; height: 92px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; position: relative; }
+  .kid-btn .pic .hatHome { position: absolute; top: -6px; right: -8px; font-size: 32px; }
   .kid-btn .meta { display: flex; flex-direction: column; align-items: flex-start; }
   .kid-btn .meta small { font-size: 15px; font-weight: 600; opacity: .9; }
   .kid-btn.lucy { background: var(--lucy); }
@@ -122,6 +123,50 @@
   #leaveDlg .box .em { font-size: 52px; }
   #leaveDlg .box h3 { margin: 6px 0 4px; font-size: 22px; }
   #leaveDlg .box p { margin: 0 0 16px; color: var(--muted); font-size: 16px; }
+
+  /* Home extras */
+  #parentBtn { border: none; background: var(--card); border-radius: 16px; padding: 10px 16px; font-size: 15px; color: var(--muted); box-shadow: 0 2px 0 rgba(0,0,0,.05); }
+  #cloudState { font-size: 13px; color: var(--muted); }
+
+  /* Character */
+  .charBox { margin: 16px 16px 0; background: var(--card); border-radius: 22px; padding: 16px; text-align: center; }
+  .charStage { position: relative; display: inline-block; line-height: 1; }
+  .charStage .hat { position: absolute; top: -.18em; right: -.28em; font-size: .45em; }
+  .charName { font-weight: 800; font-size: 18px; margin-top: 6px; }
+  .closet { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 12px; }
+  .closet span { width: 44px; height: 44px; border-radius: 14px; background: #f7f1ea; display: flex; align-items: center; justify-content: center; font-size: 24px; }
+  .closet span.lock { font-size: 12px; color: #b9ab9c; font-weight: 700; }
+  .sib { margin: 12px 16px 0; background: var(--card); border-radius: 18px; padding: 12px 16px; font-size: 16px; }
+
+  /* PIN dialog */
+  #pinDlg { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 60; }
+  #pinDlg.open { display: flex; }
+  #pinDlg .box { background: var(--card); border-radius: 24px; padding: 22px 18px 18px; width: 100%; max-width: 340px; text-align: center; }
+  #pinDlg h3 { margin: 0 0 6px; }
+  #pinDlg p { margin: 0 0 12px; color: var(--muted); font-size: 15px; }
+  #pinDlg input { width: 100%; font-size: 26px; letter-spacing: 8px; text-align: center; padding: 10px; border-radius: 14px; border: 1px solid var(--line); margin-bottom: 8px; }
+  #pinErr { color: #d0453b; font-size: 14px; min-height: 18px; margin-bottom: 8px; }
+
+  /* Parent screen */
+  #parent { overflow-y: auto; }
+  .ptabs { display: flex; gap: 8px; padding: 12px 16px 0; }
+  .ptabs button { flex: 1; border: none; border-radius: 14px; padding: 12px; font-size: 17px; font-weight: 700; background: #ece5dc; color: #555; }
+  .ptabs button.on { color: #fff; }
+  .psec { margin: 12px 16px 0; background: var(--card); border-radius: 18px; padding: 14px 16px; }
+  .psec h3 { margin: 0 0 10px; font-size: 17px; }
+  .pgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .pgrid div { background: #f7f1ea; border-radius: 12px; padding: 8px; text-align: center; }
+  .pgrid b { display: block; font-size: 20px; }
+  .pgrid span { font-size: 12px; color: var(--muted); }
+  .plist { font-size: 15px; line-height: 1.6; margin: 0; padding-left: 18px; }
+  .talk { border-top: 1px solid var(--line); padding: 10px 0; }
+  .talk:first-child { border-top: none; }
+  .talk summary { cursor: pointer; font-size: 15px; }
+  .talk .line { font-size: 15px; margin: 6px 0; line-height: 1.4; }
+  .talk .line b { color: var(--muted); font-weight: 600; }
+  .muted { color: var(--muted); font-size: 14px; }
+  #parent input[type=text] { width: 100%; font-size: 16px; padding: 10px; border-radius: 12px; border: 1px solid var(--line); margin-bottom: 8px; }
+  .pbtns { display: flex; gap: 10px; margin: 12px 16px 28px; }
 </style>
 </head>
 <body>
@@ -132,6 +177,8 @@
   <h1>Let's Talk! 🗣️</h1>
   <button class="kid-btn lucy" data-kid="lucy"><span class="pic">🐷</span><span class="meta">Lucy<small id="homeLucy"></small></span></button>
   <button class="kid-btn leo" data-kid="leo"><span class="pic">🐱</span><span class="meta">Leo<small id="homeLeo"></small></span></button>
+  <button id="parentBtn">👨‍👩‍👧 Parents · 부모님</button>
+  <div id="cloudState">☁️ connecting...</div>
 </section>
 
 <!-- 주제 고르기 화면 -->
@@ -175,6 +222,7 @@
   <div id="resAttend"></div>
   <div class="card" id="resCheer"></div>
   <div class="card levelUp" id="resEng" style="display:none"></div>
+  <div class="card levelUp" id="resItem" style="display:none"></div>
   <div class="card" id="resLevel" style="display:none"></div>
   <div class="card">
     <h3>✨ Today's expressions</h3>
@@ -192,6 +240,8 @@
     <button class="back" id="boardBackBtn">←</button>
     <div class="who" id="boardWho"></div>
   </div>
+  <div class="charBox" id="charBox"></div>
+  <div class="sib" id="sibBox"></div>
   <div class="boardTop">
     <div class="stat"><b id="bTotal">0</b><span>stickers</span></div>
     <div class="stat"><b id="bStreak">0</b><span>day streak 🔥</span></div>
@@ -218,19 +268,52 @@
     <label for="model">모델 이름</label>
     <input id="model" type="text" placeholder="예: gemini-3.5-flash-lite">
   </div>
-  <div>
-    <label>레벨업 상 (스티커 10·30·50개)</label>
-    <input id="prize1" type="text" placeholder="10개: 예) 아이스크림 🍦" style="margin-bottom:8px">
-    <input id="prize2" type="text" placeholder="30개: 예) 주말 게임 30분 🎮" style="margin-bottom:8px">
-    <input id="prize3" type="text" placeholder="50개: 예) 원하는 선물 🎁">
-    <div class="hint">50개 이후로는 30개마다 3번째 상이 다시 나옵니다.</div>
-  </div>
-  <label class="checkRow"><input id="testMode" type="checkbox"> 테스트 모드 (대화 1분)</label>
+  <label class="checkRow"><input id="testMode" type="checkbox"> 테스트 모드 (대화 1분, 하루 제한 없음)</label>
+  <div class="hint">테스트 모드로 한 대화는 기록·스티커에 저장되지 않습니다. 상 설정과 기록은 👨‍👩‍👧 부모님 화면에 있습니다.</div>
   <div class="row">
     <button class="btn light" id="cancelSettings">닫기</button>
     <button class="btn" id="saveSettings">저장</button>
   </div>
 </section>
+
+<!-- 부모님 화면 -->
+<section id="parent" class="screen">
+  <div class="topbar">
+    <button class="back" id="parentBackBtn">←</button>
+    <div class="who">👨‍👩‍👧 부모님 화면</div>
+  </div>
+  <div class="ptabs">
+    <button data-k="lucy">🐷 Lucy</button>
+    <button data-k="leo">🐱 Leo</button>
+  </div>
+  <div id="pBody"></div>
+  <div class="psec">
+    <h3>🎁 상 설정 (스티커 10·30·50개)</h3>
+    <input id="prize1" type="text" placeholder="10개: 예) 아이스크림 🍦">
+    <input id="prize2" type="text" placeholder="30개: 예) 주말 게임 30분 🎮">
+    <input id="prize3" type="text" placeholder="50개: 예) 원하는 선물 🎁">
+    <div class="muted">50개 이후로는 30개마다 3번째 상이 다시 나옵니다. 모든 휴대폰에 함께 적용됩니다.</div>
+    <div class="row" style="margin-top:10px"><button class="btn" id="savePrizes">상 저장</button></div>
+  </div>
+  <div class="pbtns">
+    <button class="btn light" id="changePin">비밀번호 바꾸기</button>
+    <button class="btn light" id="pToSettings">⚙️ 이 휴대폰 설정</button>
+  </div>
+</section>
+
+<!-- 부모님 비밀번호 창 -->
+<div id="pinDlg">
+  <div class="box">
+    <h3 id="pinTitle">부모님 비밀번호</h3>
+    <p id="pinMsg">숫자 4~8자리</p>
+    <input id="pinInput" type="password" inputmode="numeric" maxlength="8" autocomplete="off">
+    <div id="pinErr"></div>
+    <div class="btnRow">
+      <button class="bigBtn light" id="pinCancel">취소</button>
+      <button class="bigBtn" id="pinOk">확인</button>
+    </div>
+  </div>
+</div>
 
 <!-- 중간에 나가기 확인 창 -->
 <div id="leaveDlg">
@@ -379,11 +462,107 @@ function today() {
 }
 function dayDiff(a, b) { return Math.round((new Date(b + "T00:00") - new Date(a + "T00:00")) / 86400000); }
 
-// ---------- 기록 (보상) ----------
-function loadStats(k) {
-  return store.getJSON("stats_" + k, { sessions: [], words: [], days: [], streak: 0, lastDay: "", stickers: [] });
+// ---------- 파이어베이스 (온라인 기록) ----------
+// 이 값들은 웹페이지에 공개되어도 되는 연결 정보입니다. 데이터는 Firestore 보안 규칙으로 보호됩니다.
+const FB_CONFIG = {
+  apiKey: "AIzaSyA8BByyc4VSVuQYK5igMLw7SFUVV9XNYfY",
+  authDomain: "english-talk-bc4de.firebaseapp.com",
+  projectId: "english-talk-bc4de",
+  storageBucket: "english-talk-bc4de.firebasestorage.app",
+  messagingSenderId: "930802136223",
+  appId: "1:930802136223:web:45689a2a4c626cb1625eaa"
+};
+const FB_VER = "10.12.2", FAMILY = "families/kim";
+let fb = null;            // { db, fs } 연결되면 채워짐
+let cloudReady = null;    // 연결 시도 Promise
+
+function setCloud(t) { const el = $("cloudState"); if (el) el.textContent = t; }
+function withTimeout(p, ms) { return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]); }
+
+function cloudInit() {
+  if (cloudReady) return cloudReady;
+  cloudReady = (async () => {
+    try {
+      const base = "https://www.gstatic.com/firebasejs/" + FB_VER + "/";
+      const [appM, authM, fsM] = await withTimeout(Promise.all([
+        import(base + "firebase-app.js"), import(base + "firebase-auth.js"), import(base + "firebase-firestore.js")]), 15000);
+      const app = appM.initializeApp(FB_CONFIG);
+      await withTimeout(authM.signInAnonymously(authM.getAuth(app)), 15000);
+      fb = { db: fsM.getFirestore(app), fs: fsM };
+      await Promise.all(["lucy", "leo"].map(k => pullKid(k)));
+      await pullConfig();
+      await flushTalks();
+      setCloud("☁️ 기록 저장 연결됨");
+      refreshHome();
+      return true;
+    } catch (e) {
+      console.warn("cloud", e);
+      setCloud("📴 오프라인 · 기록은 휴대폰에 두었다가 나중에 올립니다");
+      cloudReady = null;   // 다음에 다시 시도
+      return false;
+    }
+  })();
+  return cloudReady;
 }
-function saveStats(k, s) { store.setJSON("stats_" + k, s); }
+
+// 아이 기록 1개 문서: families/kim/kids/{lucy|leo}
+async function pullKid(k) {
+  if (!fb) return;
+  const { doc, getDoc } = fb.fs;
+  if (store.get("dirty_" + k)) return pushKid(k);          // 이 휴대폰에 아직 안 올린 기록이 있으면 먼저 올림
+  const snap = await withTimeout(getDoc(doc(fb.db, FAMILY + "/kids/" + k)), 10000);
+  if (snap.exists()) store.setJSON("c_stats_" + k, snap.data());
+}
+async function pushKid(k) {
+  if (!fb) return;
+  const { doc, setDoc } = fb.fs;
+  try {
+    await withTimeout(setDoc(doc(fb.db, FAMILY + "/kids/" + k), { ...loadStats(k), updatedAt: Date.now() }), 10000);
+    store.set("dirty_" + k, "");
+  } catch (e) { console.warn("push", e); }
+}
+// 대화 내용: families/kim/kids/{k}/talks/{자동 ID}. 오프라인이면 휴대폰에 줄 세워 두었다가 올림
+async function saveTalk(k, rec) {
+  const q = store.getJSON("q_talks", []); q.push({ k, rec }); store.setJSON("q_talks", q);
+  await flushTalks();
+}
+async function flushTalks() {
+  if (!fb) return;
+  const { collection, addDoc } = fb.fs;
+  let q = store.getJSON("q_talks", []);
+  while (q.length) {
+    try { await withTimeout(addDoc(collection(fb.db, FAMILY + "/kids/" + q[0].k + "/talks"), q[0].rec), 10000); }
+    catch (e) { console.warn("talk", e); break; }
+    q.shift(); store.setJSON("q_talks", q);
+  }
+}
+// 가족 공통 설정(상 이름, 부모님 비밀번호): families/kim/config/main
+async function pullConfig() {
+  if (!fb) return;
+  const { doc, getDoc } = fb.fs;
+  const snap = await withTimeout(getDoc(doc(fb.db, FAMILY + "/config/main")), 10000);
+  if (snap.exists()) store.setJSON("c_config", snap.data());
+}
+async function saveConfig(patch) {
+  const c = { ...store.getJSON("c_config", {}), ...patch };
+  store.setJSON("c_config", c);
+  await cloudInit();
+  if (!fb) throw new Error("offline");
+  const { doc, setDoc } = fb.fs;
+  await withTimeout(setDoc(doc(fb.db, FAMILY + "/config/main"), c), 10000);
+}
+
+// ---------- 기록 (보상) ----------
+// 4단계부터 새 이름(c_stats_)으로 저장 → 예전 테스트 기록은 쓰지 않고 새로 시작
+function loadStats(k) {
+  const s = store.getJSON("c_stats_" + k, {});
+  return { sessions: [], words: [], days: [], streak: 0, lastDay: "", stickers: [], used: [], ...s };
+}
+function saveStats(k, s) {
+  store.setJSON("c_stats_" + k, s);
+  store.set("dirty_" + k, "1");
+  pushKid(k);
+}
 function currentStreak(s) {
   if (!s.lastDay) return 0;
   return dayDiff(s.lastDay, today()) <= 1 ? s.streak : 0;
@@ -396,9 +575,31 @@ function levelFor(n) {
 }
 function nextGoal(n) { return levelFor(n).find(p => p > n); }
 function prizeFor(point) {
-  const prizes = [1, 2, 3].map(i => store.get("prize" + i) || DEFAULT_PRIZES[i - 1]);
+  const saved = store.getJSON("c_config", {}).prizes || [];
+  const prizes = [0, 1, 2].map(i => saved[i] || DEFAULT_PRIZES[i]);
   const idx = LEVELS.indexOf(point);
   return idx >= 0 ? prizes[idx] : prizes[2];
+}
+
+// ---------- 캐릭터 성장 (스티커 수에 따라) ----------
+const STAGES = [
+  { n: 0, name: "Baby", size: 64 }, { n: 10, name: "Kid", size: 80 }, { n: 30, name: "Big", size: 96 },
+  { n: 50, name: "Super", size: 112 }, { n: 100, name: "Legend", size: 128 }
+];
+const ITEMS = {
+  lucy: [{ n: 3, i: "🎀", name: "Ribbon" }, { n: 8, i: "🕶️", name: "Sunglasses" }, { n: 15, i: "🎧", name: "Headphones" },
+         { n: 25, i: "🎒", name: "Backpack" }, { n: 40, i: "👑", name: "Crown" }, { n: 60, i: "🌈", name: "Rainbow" },
+         { n: 80, i: "🦄", name: "Unicorn friend" }, { n: 100, i: "🏆", name: "Trophy" }],
+  leo:  [{ n: 3, i: "🧢", name: "Cap" }, { n: 8, i: "⚽", name: "Soccer ball" }, { n: 15, i: "🕶️", name: "Sunglasses" },
+         { n: 25, i: "👟", name: "Soccer shoes" }, { n: 40, i: "👑", name: "Crown" }, { n: 60, i: "🚀", name: "Rocket" },
+         { n: 80, i: "🐉", name: "Dragon friend" }, { n: 100, i: "🏆", name: "Trophy" }]
+};
+function stageFor(n) { return STAGES.filter(s => n >= s.n).pop(); }
+function itemsFor(k, n) { return ITEMS[k].filter(x => n >= x.n); }
+function charHtml(k, n) {
+  const st = stageFor(n), got = itemsFor(k, n), last = got[got.length - 1];
+  return '<span class="charStage" style="font-size:' + st.size + 'px">' + KIDS[k].emoji +
+    (last ? '<span class="hat">' + last.i + "</span>" : "") + "</span>";
 }
 
 // 노력 별 계산: 끝까지 하면 1개 + 노력 기준 3가지 중 맞춘 만큼 (최대 3개)
@@ -439,6 +640,9 @@ function refreshHome() {
   ["lucy", "leo"].forEach(k => {
     const s = loadStats(k), n = s.stickers.length, st = currentStreak(s);
     $(k === "lucy" ? "homeLucy" : "homeLeo").textContent = "⭐ " + n + (st ? "  🔥 " + st : "");
+    // 첫 화면 그림도 자라는 캐릭터로
+    const pic = document.querySelector(".kid-btn." + k + " .pic"), last = itemsFor(k, n).pop();
+    pic.innerHTML = KIDS[k].emoji + (last ? '<span class="hatHome">' + last.i + "</span>" : "");
   });
 }
 document.querySelectorAll(".kid-btn").forEach(b => b.onclick = () => showTopics(b.dataset.kid));
@@ -449,33 +653,149 @@ $("boardBackBtn").onclick = () => showTopics(kidId);
 $("resBoardBtn").onclick = () => showBoard();
 $("resDoneBtn").onclick = () => showTopics(kidId);
 
-$("settingsBtn").onclick = () => {
+function openSettings() {
   $("apiKey").value = store.get("geminiKey"); $("model").value = store.get("geminiModel");
-  [1, 2, 3].forEach(i => $("prize" + i).value = store.get("prize" + i));
   $("testMode").checked = store.get("testMode") === "1";
   show("settings");
-};
+}
+// ⚙️ 설정과 부모님 화면은 부모님 비밀번호로 잠금 (아이가 테스트 모드로 제한을 풀지 못하게)
+$("settingsBtn").onclick = async () => { if (await askPin()) openSettings(); };
+$("parentBtn").onclick = async () => { if (await askPin()) showParent("lucy"); };
 $("cancelSettings").onclick = () => show("home");
 $("saveSettings").onclick = () => {
   store.set("geminiKey", $("apiKey").value.trim());
   store.set("geminiModel", $("model").value.trim());
-  [1, 2, 3].forEach(i => store.set("prize" + i, $("prize" + i).value.trim()));
   store.set("testMode", $("testMode").checked ? "1" : "");
   refreshHome(); show("home");
 };
 
-// ---------- 주제 (한 번 고른 주제는 잠금, 다 쓰면 초기화) ----------
-function usedTopics(k) { return store.getJSON("used_" + k, []); }
-function markTopicUsed() {
-  if (!topic || topic.id === "random") return;
-  const all = KIDS[kidId].topics.map(t => t.id);
-  let used = usedTopics(kidId).filter(id => all.includes(id));
-  if (!used.includes(topic.id)) used.push(topic.id);
-  if (used.length >= all.length) used = []; // 다 골랐으면 다시 처음부터
-  store.setJSON("used_" + kidId, used);
+// ---------- 부모님 비밀번호 ----------
+let pinUntil = 0;   // 한 번 풀면 10분 동안은 다시 묻지 않음
+async function hashPin(p) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("english-talk:" + p));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+function pinDialog(title, msg) {
+  return new Promise(resolve => {
+    $("pinTitle").textContent = title; $("pinMsg").textContent = msg;
+    $("pinInput").value = ""; $("pinErr").textContent = "";
+    $("pinDlg").classList.add("open"); setTimeout(() => $("pinInput").focus(), 50);
+    const done = v => { $("pinDlg").classList.remove("open"); $("pinOk").onclick = $("pinCancel").onclick = null; $("pinInput").onkeydown = null; resolve(v); };
+    $("pinCancel").onclick = () => done(null);
+    $("pinOk").onclick = () => {
+      const v = $("pinInput").value.trim();
+      if (!/^\d{4,8}$/.test(v)) { $("pinErr").textContent = "숫자 4~8자리로 넣어 주세요."; return; }
+      done(v);
+    };
+    $("pinInput").onkeydown = e => { if (e.key === "Enter") $("pinOk").onclick(); };
+  });
+}
+async function setNewPin(first) {
+  const a = await pinDialog(first ? "부모님 비밀번호 만들기" : "새 비밀번호", "아이들이 모르는 숫자 4~8자리로 정해 주세요.");
+  if (!a) return false;
+  const b = await pinDialog("한 번 더 입력", "같은 비밀번호를 다시 넣어 주세요.");
+  if (a !== b) { alert("두 번 넣은 비밀번호가 달라요. 다시 해 주세요."); return false; }
+  try { await saveConfig({ pinHash: await hashPin(a) }); }
+  catch (e) { alert("인터넷 연결 후 다시 해 주세요. (비밀번호는 모든 휴대폰에 함께 저장됩니다)"); return false; }
+  pinUntil = Date.now() + 10 * 60000;
+  return true;
+}
+async function askPin() {
+  if (Date.now() < pinUntil) return true;
+  await Promise.race([cloudInit(), new Promise(r => setTimeout(r, 4000))]);
+  const hash = store.getJSON("c_config", {}).pinHash;
+  if (!hash) return setNewPin(true);
+  for (let i = 0; i < 3; i++) {
+    const p = await pinDialog("부모님 비밀번호", i ? "비밀번호가 달라요. 다시 넣어 주세요." : "부모님만 들어갈 수 있어요.");
+    if (p === null) return false;
+    if (await hashPin(p) === hash) { pinUntil = Date.now() + 10 * 60000; return true; }
+  }
+  return false;
 }
 
-function showTopics(k) {
+// ---------- 부모님 화면 ----------
+let pKid = "lucy";
+document.querySelectorAll(".ptabs button").forEach(b => b.onclick = () => showParent(b.dataset.k));
+$("parentBackBtn").onclick = () => { refreshHome(); show("home"); };
+$("pToSettings").onclick = openSettings;
+$("changePin").onclick = () => setNewPin(false).then(ok => ok && alert("비밀번호를 바꿨어요."));
+$("savePrizes").onclick = async () => {
+  try { await saveConfig({ prizes: [1, 2, 3].map(i => $("prize" + i).value.trim()) }); alert("상을 저장했어요. 모든 휴대폰에 적용됩니다."); }
+  catch (e) { alert("인터넷 연결 후 다시 저장해 주세요."); }
+};
+
+async function showParent(k) {
+  pKid = k;
+  document.querySelectorAll(".ptabs button").forEach(b => {
+    const on = b.dataset.k === k; b.classList.toggle("on", on); b.style.background = on ? KIDS[b.dataset.k].color : "";
+  });
+  const prizes = store.getJSON("c_config", {}).prizes || [];
+  [1, 2, 3].forEach(i => $("prize" + i).value = prizes[i - 1] || "");
+  renderParent(k);
+  show("parent");
+  if (await cloudInit()) { await pullKid(k).catch(() => {}); if (pKid === k) renderParent(k); loadTalks(k); }
+  else $("pTalks").innerHTML = '<p class="muted">오프라인이라 대화 내용을 불러오지 못했어요.</p>';
+}
+
+function renderParent(k) {
+  const s = loadStats(k), d = today(), n = s.stickers.length, K = KIDS[k];
+  const todayN = s.sessions.filter(x => x.day === d).length;
+  const stars = s.stickers.filter(x => x.type === "star").length;
+  const recent = s.sessions.slice(-14).reverse();
+  const hist = (s.levelHist || []).slice().reverse();
+  const whyKo = { placed: "처음 배치", up: "⬆ 올라감", down: "⬇ 내려감" };
+  const since7 = s.sessions.filter(x => dayDiff(x.day, d) < 7);
+  $("pBody").innerHTML =
+    '<div class="psec"><h3>' + K.emoji + " " + K.name + " 요약</h3><div class='pgrid'>" +
+      "<div><b>" + n + "</b><span>스티커</span></div>" +
+      "<div><b>" + stars + "</b><span>별</span></div>" +
+      "<div><b>" + currentStreak(s) + "</b><span>연속 출석</span></div>" +
+      "<div><b>" + s.days.length + "</b><span>출석일</span></div>" +
+      "<div><b>" + (s.level ? "Lv." + s.level : "탐색 중") + "</b><span>영어 레벨</span></div>" +
+      "<div><b>" + todayN + "/" + DAILY_MAX + "</b><span>오늘</span></div>" +
+    "</div><p class='muted' style='margin:10px 0 0'>최근 7일: 대화 " + since7.length + "번 · 평균 별 " +
+      (since7.length ? (since7.reduce((a, x) => a + x.stars, 0) / since7.length).toFixed(1) : "-") +
+      " · 한 번에 평균 " + (since7.length ? (since7.reduce((a, x) => a + x.avgWords, 0) / since7.length).toFixed(1) : "-") + "단어</p></div>" +
+    '<div class="psec"><h3>📈 영어 레벨 변화</h3>' + (hist.length
+      ? "<ul class='plist'>" + hist.map(h => "<li>" + h.day + " · Lv." + h.level + " (" + whyKo[h.why] + ")</li>").join("") + "</ul>"
+      : "<p class='muted'>대화 " + PLACEMENT + "번을 마치면 레벨이 자동으로 정해집니다. (지금 " + s.sessions.filter(x => x.stars > 0).length + "번)</p>") + "</div>" +
+    '<div class="psec"><h3>🗓 최근 대화 기록</h3>' + (recent.length
+      ? "<ul class='plist'>" + recent.map(x => "<li>" + x.day + " · " + escapeHtml(x.topic) + " · " + "⭐".repeat(x.stars) +
+          " · " + x.turns + "번 말함 · 평균 " + x.avgWords + "단어</li>").join("") + "</ul>"
+      : "<p class='muted'>아직 기록이 없어요.</p>") + "</div>" +
+    '<div class="psec"><h3>💬 대화 내용</h3><div id="pTalks"><p class="muted">불러오는 중...</p></div></div>';
+}
+
+async function loadTalks(k) {
+  try {
+    const { collection, query, orderBy, limit, getDocs } = fb.fs;
+    const snap = await withTimeout(getDocs(query(collection(fb.db, FAMILY + "/kids/" + k + "/talks"), orderBy("ts", "desc"), limit(20))), 10000);
+    if (pKid !== k) return;
+    const rows = snap.docs.map(d => d.data());
+    $("pTalks").innerHTML = rows.length ? rows.map(t =>
+      '<details class="talk"><summary>' + escapeHtml(t.day + " · " + t.topic + " · " + "⭐".repeat(t.stars || 0) + " · Lv." + (t.level || "-")) + "</summary>" +
+        (t.lines || []).map(l => '<div class="line"><b>' + (l.r === "kid" ? KIDS[k].name : "Buddy") + ":</b> " + escapeHtml(l.t) + "</div>").join("") +
+        ((t.expressions || []).length ? '<div class="line"><b>오늘의 표현:</b> ' + escapeHtml(t.expressions.join(" / ")) + "</div>" : "") +
+      "</details>").join("") : '<p class="muted">아직 저장된 대화가 없어요.</p>';
+  } catch (e) {
+    if (pKid === k) $("pTalks").innerHTML = '<p class="muted">대화 내용을 불러오지 못했어요. (' + escapeHtml(e.message) + ")</p>";
+  }
+}
+
+// ---------- 주제 (한 번 고른 주제는 잠금, 다 쓰면 초기화) ----------
+function usedTopics(k) { return loadStats(k).used || []; }
+function markTopicUsed() {
+  if (!topic || topic.id === "random" || isTest()) return;
+  const all = KIDS[kidId].topics.map(t => t.id);
+  const s = loadStats(kidId);
+  let used = (s.used || []).filter(id => all.includes(id));
+  if (!used.includes(topic.id)) used.push(topic.id);
+  if (used.length >= all.length) used = []; // 다 골랐으면 다시 처음부터
+  s.used = used; saveStats(kidId, s);
+}
+function isTest() { return store.get("testMode") === "1"; }
+
+function showTopics(k, fromCloud) {
   if (!store.get("geminiKey") || !store.get("geminiModel")) {
     alert("먼저 ⚙️ 설정에서 API 키와 모델 이름을 넣어 주세요.");
     return;
@@ -509,6 +829,10 @@ function showTopics(k) {
   const done = used.filter(id => kid.topics.some(t => t.id === id)).length;
   $("topicProgress").textContent = done + " / " + kid.topics.length + " topics done";
   show("topics");
+  // 다른 휴대폰에서 한 기록까지 반영되도록 온라인 기록을 받아 와서 다시 그림
+  if (!fromCloud) cloudInit().then(ok => ok && pullKid(k)).then(() => {
+    if (kidId === k && $("topics").classList.contains("active")) showTopics(k, true);
+  }).catch(() => {});
 }
 
 // ---------- 대화 ----------
@@ -638,11 +962,15 @@ function wrapUp() {
 }
 
 // ---------- 마무리: 보상 계산 + 결과 화면 ----------
-function finishSession() {
+async function finishSession() {
   if (finished) return;
   finished = true;
   $("leaveDlg").classList.remove("open");
   stopChat(); setInputs(false);
+  setStatus("Saving your stars... ⭐");
+  // 다른 휴대폰 기록과 겹치지 않게 최신 기록을 먼저 받아 옴 (오프라인이면 건너뜀)
+  try { if (fb) await withTimeout(pullKid(kidId), 4000); } catch (e) {}
+  const test = isTest();
   markTopicUsed();
 
   const s = loadStats(kidId);
@@ -664,17 +992,31 @@ function finishSession() {
   s.sessions.push({ day, topic: topic.title, turns: sc.turns, avgWords: sc.avgWords, newWords: sc.newWords, stars: sc.stars });
   s.words = [...new Set([...s.words, ...sc.fresh])].slice(-3000);
   const lv = updateLevel(kidId, s);
-  saveStats(kidId, s);
+  if (!test) saveStats(kidId, s);          // 테스트 모드 대화는 저장하지 않음
 
-  // 레벨업 확인
+  // 상(레벨업 지점)과 새 아이템 확인
   const after = s.stickers.length;
   const reached = levelFor(after).filter(p => p > before && p <= after);
+  const newItems = ITEMS[kidId].filter(x => x.n > before && x.n <= after);
 
-  renderResult(sc, firstToday, s, reached, lv);
-  loadExpressions();
+  renderResult(sc, firstToday, s, reached, lv, newItems, test);
+  const expressions = await loadExpressions();
+  if (!test) saveTalk(kidId, {
+    ts: Date.now(), day, topic: topic.title, level: kidLevel(kidId), stars: sc.stars, turns: sc.turns,
+    lines: history.filter(m => !m.parts[0].text.startsWith("(")).map(m => ({ r: m.role === "user" ? "kid" : "ai", t: m.parts[0].text })),
+    expressions
+  });
 }
 
-function renderResult(sc, firstToday, s, reached, lv) {
+function renderResult(sc, firstToday, s, reached, lv, newItems, test) {
+  if (newItems && newItems.length) {
+    const it = newItems[newItems.length - 1];
+    $("resItem").style.display = "";
+    $("resItem").innerHTML = "<h3>🎉 New item: " + it.i + " " + it.name + "!</h3><p>Your " + (kidId === "leo" ? "cat" : "pig") +
+      " is growing! Check your sticker page. " + charHtml(kidId, s.stickers.length) + "</p>";
+  } else {
+    $("resItem").style.display = "none";
+  }
   // 영어 레벨: 올라가거나 처음 정해졌을 때만 보여 줌 (내려갈 때는 표시 안 함)
   if (lv && (lv.kind === "up" || lv.kind === "placed")) {
     $("resEng").style.display = "";
@@ -710,6 +1052,7 @@ function renderResult(sc, firstToday, s, reached, lv) {
     $("resLevel").style.display = "none";
   }
   $("resWords").innerHTML = "<li>Loading...</li>";
+  if (test) $("resAttend").innerHTML = '<span class="badge">🧪 테스트 모드 · 저장 안 됨</span>';
   show("result");
 }
 
@@ -726,8 +1069,10 @@ async function loadExpressions() {
     const list = (JSON.parse(out.replace(/^```(json)?|```$/g, "")).expressions || []).filter(x => !HANGUL.test(x)).slice(0, 3);
     if (!list.length) throw new Error("empty");
     $("resWords").innerHTML = list.map(x => "<li>" + escapeHtml(x) + "</li>").join("");
+    return list;
   } catch (e) {
     $("resWords").innerHTML = "<li>Great talking today!</li>";
+    return [];
   }
 }
 
@@ -738,6 +1083,19 @@ function showBoard() {
   const s = loadStats(kidId), n = s.stickers.length, goal = nextGoal(n);
   const prevGoal = [0, ...levelFor(n)].filter(p => p <= n).pop() || 0;
   $("boardWho").textContent = kid.emoji + " " + kid.name + "'s Stickers";
+  // 자라는 캐릭터 + 옷장
+  const st = stageFor(n), nextSt = STAGES.find(x => x.n > n), nextIt = ITEMS[kidId].find(x => x.n > n);
+  $("charBox").innerHTML = charHtml(kidId, n) +
+    '<div class="charName">' + st.name + " " + (kidId === "leo" ? "Cat" : "Pig") + "</div>" +
+    '<div class="muted">' + (nextIt ? "Next item at " + nextIt.n + " stickers! " : "") +
+      (nextSt ? "Grows up at " + nextSt.n + "!" : "Fully grown! 🌟") + "</div>" +
+    '<div class="closet">' + ITEMS[kidId].map(x => n >= x.n ? "<span title='" + x.name + "'>" + x.i + "</span>"
+      : '<span class="lock">🔒' + x.n + "</span>").join("") + "</div>";
+  // 남매 기록
+  const sibId = kidId === "leo" ? "lucy" : "leo", ss = loadStats(sibId);
+  $("sibBox").innerHTML = "👀 " + KIDS[sibId].emoji + " " + KIDS[sibId].name + ": ⭐ " + ss.stickers.length +
+    " · 🔥 " + currentStreak(ss) + " · " + (ss.level ? "Lv." + ss.level : "🔍") + " · today " +
+    ss.sessions.filter(x => x.day === today()).length + "/" + DAILY_MAX;
   $("bTotal").textContent = n;
   $("bStreak").textContent = currentStreak(s);
   $("bDays").textContent = s.days.length;
@@ -825,6 +1183,7 @@ $("sendBtn").onclick = sendTyped;
 $("typeInput").addEventListener("keydown", e => { if (e.key === "Enter") sendTyped(); });
 
 refreshHome();
+cloudInit();   // 온라인 기록 연결 (실패하면 휴대폰에 저장해 두었다가 다음에 올림)
 
 // 앱으로 설치할 수 있게 서비스 워커 등록
 if ("serviceWorker" in navigator) { try { navigator.serviceWorker.register("sw.js").catch(() => {}); } catch (e) {} }
