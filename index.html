@@ -268,6 +268,7 @@
     <label for="model">모델 이름</label>
     <input id="model" type="text" placeholder="예: gemini-3.5-flash-lite">
   </div>
+  <div class="hint" id="voiceInfo"></div>
   <label class="checkRow"><input id="testMode" type="checkbox"> 테스트 모드 (대화 1분, 하루 제한 없음)</label>
   <div class="hint">테스트 모드로 한 대화는 기록·스티커에 저장되지 않습니다. 상 설정과 기록은 👨‍👩‍👧 부모님 화면에 있습니다.</div>
   <div class="row">
@@ -389,7 +390,11 @@ const BUDDIES = [
 let buddy = BUDDIES[0];
 function pickBuddy(k) {
   const last = store.get("lastBuddy_" + k);
-  const pool = BUDDIES.filter(b => b.id !== last);           // 지난번과 같은 친구는 안 나오게
+  loadVoices();
+  // 그 친구의 성별에 맞는 목소리가 이 휴대폰에 있을 때만 후보 (남자 친구에게 여자 목소리 금지)
+  let pool = BUDDIES.filter(b => b.id !== last && voiceFor(b));
+  if (!pool.length) pool = BUDDIES.filter(b => b.id !== last && b.g === "f");   // 목소리 목록을 못 읽은 경우: 여자 친구만
+  // 지난번과 같은 친구는 안 나오게
   let r = Math.random() * pool.reduce((a, b) => a + b.w, 0);
   const b = pool.find(x => (r -= x.w) < 0) || pool[0];
   store.set("lastBuddy_" + k, b.id);
@@ -690,6 +695,7 @@ $("resDoneBtn").onclick = () => showTopics(kidId);
 function openSettings() {
   $("apiKey").value = store.get("geminiKey"); $("model").value = store.get("geminiModel");
   $("testMode").checked = store.get("testMode") === "1";
+  $("voiceInfo").textContent = voiceSummary();
   show("settings");
 }
 // ⚙️ 설정과 부모님 화면은 부모님 비밀번호로 잠금 (아이가 테스트 모드로 제한을 풀지 못하게)
@@ -1162,13 +1168,32 @@ try { speechSynthesis.onvoiceschanged = loadVoices; } catch (e) {}
 // 대화 친구의 나라 억양(en-US/en-GB/en-AU)과 성별에 맞는 목소리를 휴대폰에 있는 것 중에서 고름
 const FEMALE_V = /(female|woman|samantha|karen|moira|tessa|victoria|zira|aria|jenny|libby|sonia|natasha|serena|kate|catherine|google us english|google uk english female)/i;
 const MALE_V = /(\bmale\b|\bman\b|daniel|arthur|oliver|george|ryan|guy|fred|alex|tom|rishi|aaron|james|william|google uk english male)/i;
-function pickVoice() {
+// 안드로이드 구글 목소리 코드 (예: en-gb-x-gbd-network = 영국 남자)
+const MALE_CODE = /-x-(iol|iom|tpd|gbb|gbd|rjs|aub|aud)\b/i, FEMALE_CODE = /-x-(sfg|iob|iog|tpc|tpf|gba|gbc|gbg|aua|auc)\b/i;
+// 목소리 성별: "m" 남자 확실, "f" 여자 확실, "u" 알 수 없음 (안드로이드 기본 목소리는 대부분 여자라 여자 친구에게만 사용)
+function voiceGender(v) {
+  const t = (v.name || "") + " " + (v.voiceURI || "");
+  if (MALE_CODE.test(t) || (MALE_V.test(t) && !/female/i.test(t))) return "m";
+  if (FEMALE_CODE.test(t) || FEMALE_V.test(t)) return "f";
+  return "u";
+}
+function voiceFor(b) {
   const norm = l => (l || "").replace("_", "-").toLowerCase();
-  const en = voices.filter(v => /^en(-|_)/i.test(v.lang));
-  const same = en.filter(v => norm(v.lang) === buddy.lang.toLowerCase());
-  const want = buddy.g === "m" ? MALE_V : FEMALE_V, avoid = buddy.g === "m" ? FEMALE_V : MALE_V;
-  return same.find(v => want.test(v.name)) || same.find(v => !avoid.test(v.name)) || same[0] ||
-    en.find(v => norm(v.lang) === "en-us" && want.test(v.name)) || en.find(v => norm(v.lang) === "en-us") || en[0] || null;
+  const en = voices.filter(v => /^en(-|_)/i.test(v.lang)), lang = b.lang.toLowerCase();
+  const same = x => norm(x.lang) === lang, us = x => norm(x.lang) === "en-us", g = x => voiceGender(x);
+  if (b.g === "m") {   // 남자 친구: 남자 목소리 확실할 때만 (억양이 달라도 성별 우선)
+    return en.find(x => same(x) && g(x) === "m") || en.find(x => us(x) && g(x) === "m") || en.find(x => g(x) === "m") || null;
+  }
+  return en.find(x => same(x) && g(x) === "f") || en.find(x => same(x) && g(x) === "u") ||
+    en.find(x => us(x) && g(x) === "f") || en.find(x => g(x) === "f") || en.find(x => g(x) === "u") || null;
+}
+function pickVoice() { return voiceFor(buddy); }
+function voiceSummary() {
+  loadVoices();
+  const en = voices.filter(v => /^en(-|_)/i.test(v.lang)), c = { f: 0, m: 0, u: 0 };
+  en.forEach(v => c[voiceGender(v)]++);
+  return "이 휴대폰 영어 목소리: 여자 " + c.f + " · 남자 " + c.m + " · 성별 모름 " + c.u +
+    (c.m ? " → 남자 친구도 나옵니다." : " → 남자 목소리가 없어 여자 친구만 나옵니다.");
 }
 
 function speak(text) {
@@ -1179,7 +1204,7 @@ function speak(text) {
       const v = pickVoice(); if (v) u.voice = v;
       u.lang = v ? v.lang : buddy.lang;
       u.rate = Math.min(1.1, kid.rate + (kidLevel(kidId) - 1) * 0.04);
-      u.pitch = buddy.g === "m" ? 0.9 : 1.1;   // 휴대폰 목소리가 하나뿐이어도 남녀 느낌을 조금 살림
+      u.pitch = 1.0;
       u.onend = resolve; u.onerror = resolve;
       setTimeout(resolve, 20000); // 소리가 안 끝나도 멈추지 않게
       setStatus("🔊 " + buddy.flag + " " + buddy.name + " is talking...");
