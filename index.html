@@ -385,7 +385,6 @@ const BUDDIES = [
   { id: "harry",  name: "Harry",  flag: "🇬🇧", from: "Bristol, UK",          lang: "en-GB", g: "m", w: 2, likes: "dinosaurs, Lego, and rainy-day games" },
   { id: "mia",    name: "Mia",    flag: "🇦🇺", from: "Sydney, Australia",    lang: "en-AU", g: "f", w: 1, likes: "kangaroos, surfing, and summer at Christmas" },
   { id: "liam",   name: "Liam",   flag: "🇨🇦", from: "Toronto, Canada",      lang: "en-US", g: "m", w: 1, likes: "ice hockey, maple syrup, and snowmen" },
-  { id: "aanya",  name: "Aanya",  flag: "🇮🇳", from: "Bangalore, India",     lang: "en-IN", g: "f", w: 1, likes: "cricket, drawing, and festivals with lights" },
   { id: "kofi",   name: "Kofi",   flag: "🇬🇭", from: "Accra, Ghana",         lang: "en-GB", g: "m", w: 1, likes: "drums, soccer, and telling funny stories" }
 ];
 let buddy = BUDDIES[0];
@@ -1161,7 +1160,7 @@ function loadVoices() { try { voices = speechSynthesis.getVoices(); } catch (e) 
 loadVoices();
 try { speechSynthesis.onvoiceschanged = loadVoices; } catch (e) {}
 
-// 대화 친구의 나라 억양(en-US/en-GB/en-AU/en-IN)과 성별에 맞는 목소리를 휴대폰에 있는 것 중에서 고름
+// 대화 친구의 나라 억양(en-US/en-GB/en-AU)과 성별에 맞는 목소리를 휴대폰에 있는 것 중에서 고름
 const FEMALE_V = /(female|woman|samantha|karen|moira|tessa|victoria|zira|aria|jenny|libby|sonia|natasha|serena|kate|catherine|google us english|google uk english female)/i;
 const MALE_V = /(\bmale\b|\bman\b|daniel|arthur|oliver|george|ryan|guy|fred|alex|tom|rishi|aaron|james|william|google uk english male)/i;
 function pickVoice() {
