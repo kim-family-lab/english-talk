@@ -115,6 +115,10 @@
   .row { display: flex; gap: 10px; }
   .btn { flex: 1; font-size: 17px; padding: 14px; border-radius: 14px; border: none; background: #333; color: #fff; }
   .btn.light { background: #ddd; color: #333; }
+  .vrow { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .vrow .vname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .vrow button { border: none; background: #ece5dc; border-radius: 10px; padding: 8px 10px; font-size: 15px; }
+  .vrow select { font-size: 15px; padding: 6px; border-radius: 10px; border: 1px solid var(--line); }
 
   /* Leave dialog */
   #leaveDlg { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
@@ -269,7 +273,12 @@
     <label for="model">모델 이름</label>
     <input id="model" type="text" placeholder="예: gemini-3.5-flash-lite">
   </div>
-  <div class="hint" id="voiceInfo"></div>
+  <div>
+    <label>🔊 이 휴대폰 영어 목소리</label>
+    <div class="hint" id="voiceInfo"></div>
+    <div class="hint">▶로 들어 보고 남자/여자를 골라 주세요. 남자로 표시한 목소리가 있어야 남자 친구가 나옵니다. (이 휴대폰에만 저장)</div>
+    <div id="voiceList"></div>
+  </div>
   <label class="checkRow"><input id="testMode" type="checkbox"> 테스트 모드 (대화 1분, 하루 제한 없음)</label>
   <div class="hint">테스트 모드로 한 대화는 기록·스티커에 저장되지 않습니다. 상 설정과 기록은 👨‍👩‍👧 부모님 화면에 있습니다.</div>
   <div class="row">
@@ -697,6 +706,7 @@ function openSettings() {
   $("apiKey").value = store.get("geminiKey"); $("model").value = store.get("geminiModel");
   $("testMode").checked = store.get("testMode") === "1";
   $("voiceInfo").textContent = voiceSummary();
+  renderVoiceList();
   show("settings");
 }
 // ⚙️ 설정과 부모님 화면은 부모님 비밀번호로 잠금 (아이가 테스트 모드로 제한을 풀지 못하게)
@@ -1186,7 +1196,10 @@ const MALE_V = /(\bmale\b|\bman\b|daniel|arthur|oliver|george|ryan|guy|fred|alex
 // 안드로이드 구글 목소리 코드 (예: en-gb-x-gbd-network = 영국 남자)
 const MALE_CODE = /-x-(iol|iom|tpd|gbb|gbd|rjs|aub|aud)\b/i, FEMALE_CODE = /-x-(sfg|iob|iog|tpc|tpf|gba|gbc|gbg|aua|auc)\b/i;
 // 목소리 성별: "m" 남자 확실, "f" 여자 확실, "u" 알 수 없음 (안드로이드 기본 목소리는 대부분 여자라 여자 친구에게만 사용)
+function voiceKey(v) { return (v.voiceURI || v.name) + "|" + v.lang; }
 function voiceGender(v) {
+  const mark = store.getJSON("voiceG", {})[voiceKey(v)];   // 아빠가 직접 표시한 성별이 있으면 그걸 우선
+  if (mark === "m" || mark === "f") return mark;
   const t = (v.name || "") + " " + (v.voiceURI || "");
   if (MALE_CODE.test(t) || (MALE_V.test(t) && !/female/i.test(t))) return "m";
   if (FEMALE_CODE.test(t) || FEMALE_V.test(t)) return "f";
@@ -1266,7 +1279,36 @@ function sendTyped() {
 $("sendBtn").onclick = sendTyped;
 $("typeInput").addEventListener("keydown", e => { if (e.key === "Enter") sendTyped(); });
 
-const APP_VERSION = "v11 (11/19 목소리 성별)";
+// ⚙️ 설정: 목소리 목록 (들어 보기 + 남/여 표시)
+function renderVoiceList() {
+  loadVoices();
+  const en = voices.filter(v => /^en(-|_)/i.test(v.lang));
+  const marks = store.getJSON("voiceG", {});
+  $("voiceList").innerHTML = en.length ? "" : '<div class="hint">목소리 목록을 아직 못 읽었어요. 잠시 뒤 설정을 다시 열어 주세요.</div>';
+  en.forEach(v => {
+    const row = document.createElement("div"); row.className = "vrow";
+    const g = marks[voiceKey(v)] || "";
+    row.innerHTML = '<span class="vname">' + escapeHtml(v.lang.replace("_", "-") + " · " + v.name) + "</span>" +
+      "<button>▶</button><select><option value=''>모름</option><option value='f'>여자</option><option value='m'>남자</option></select>";
+    row.querySelector("select").value = g;
+    row.querySelector("button").onclick = () => {
+      try {
+        speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance("Hello! I am your English buddy. Nice to meet you!");
+        u.voice = v; u.lang = v.lang; speechSynthesis.speak(u);
+      } catch (e) {}
+    };
+    row.querySelector("select").onchange = e => {
+      const m = store.getJSON("voiceG", {});
+      if (e.target.value) m[voiceKey(v)] = e.target.value; else delete m[voiceKey(v)];
+      store.setJSON("voiceG", m);
+      $("voiceInfo").textContent = voiceSummary();
+    };
+    $("voiceList").appendChild(row);
+  });
+}
+
+const APP_VERSION = "v12 (11/19 목소리 직접 표시)";
 $("verLabel").textContent = APP_VERSION; $("verLabel2").textContent = APP_VERSION;
 refreshHome();
 cloudInit();   // 온라인 기록 연결 (실패하면 휴대폰에 저장해 두었다가 다음에 올림)
