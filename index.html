@@ -694,7 +694,7 @@ function refreshHome() {
     pic.innerHTML = KIDS[k].emoji + (last ? '<span class="hatHome">' + last.i + "</span>" : "");
   });
 }
-document.querySelectorAll(".kid-btn").forEach(b => b.onclick = () => showTopics(b.dataset.kid));
+document.querySelectorAll(".kid-btn").forEach(b => b.onclick = () => { warmVoice(); showTopics(b.dataset.kid); });
 $("backBtn").onclick = leaveChat;
 $("topicBackBtn").onclick = () => { refreshHome(); show("home"); };
 $("boardBtn").onclick = () => showBoard();
@@ -905,7 +905,7 @@ function startChat(t) {
   setInputs(true);
   show("chat");
   iceQ = ICE_QS[Math.floor(Math.random() * ICE_QS.length)];   // 가벼운 질문은 매번 다르게
-  ask("(The conversation is starting. Say hello, introduce yourself, and ask the child's name.)", true);
+  greetLocally();   // 첫 인사는 AI를 기다리지 않고 바로 (시작 지연 줄이기)
 }
 
 function stopChat() {
@@ -1308,7 +1308,32 @@ function renderVoiceList() {
   });
 }
 
-const APP_VERSION = "v12 (11/19 목소리 직접 표시)";
+// ---------- 시작 지연 줄이기 ----------
+// 휴대폰 음성 엔진은 처음 말할 때 켜지느라 몇 초 걸림 → 이름 버튼을 누를 때 소리 없이 미리 켜 둠
+let voiceWarmed = false;
+function warmVoice() {
+  if (voiceWarmed) return;
+  try { const u = new SpeechSynthesisUtterance("hi"); u.volume = 0; u.lang = "en-US"; speechSynthesis.speak(u); voiceWarmed = true; } catch (e) {}
+}
+// 첫 인사(이름 소개 + 이름 묻기)는 정해진 문장이라 앱에서 바로 만들어 말함
+async function greetLocally() {
+  const city = buddy.from.split(",")[0];
+  const lines = [
+    "Hi there! I'm " + buddy.name + " from " + city + ". What's your name?",
+    "Hello! My name is " + buddy.name + ". I live in " + city + ". What's your name?",
+    "Hey! I'm " + buddy.name + ", and I'm from " + city + ". What's your name?"
+  ];
+  const g = lines[Math.floor(Math.random() * lines.length)];
+  history.push({ role: "user", parts: [{ text: "(The conversation is starting. Say hello, introduce yourself, and ask the child's name.)" }] });
+  history.push({ role: "model", parts: [{ text: g }] });
+  busy = true; setInputs(false);
+  addMsg(g, "ai");
+  await speak(g);
+  busy = false;
+  if (!timeUp && !finished) { setInputs(true); setStatus("Tap the mic and talk!"); }
+}
+
+const APP_VERSION = "v13 (11/19 시작 빠르게)";
 $("verLabel").textContent = APP_VERSION; $("verLabel2").textContent = APP_VERSION;
 refreshHome();
 cloudInit();   // 온라인 기록 연결 (실패하면 휴대폰에 저장해 두었다가 다음에 올림)
