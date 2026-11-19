@@ -893,10 +893,8 @@ function startChat(t) {
   }, 1000);
   setInputs(true);
   show("chat");
-  const opener = topic.id === "random"
-    ? "(The conversation is starting. Greet " + kid.name + " warmly by name, say your name and where you live in one short sentence, then ask if there is something they want to talk about today.)"
-    : "(The conversation is starting. Greet " + kid.name + " warmly by name, say your name and where you live in one short sentence, say today's topic is \"" + topic.title + "\", and ask one easy question about it.)";
-  ask(opener, true);
+  iceQ = ICE_QS[Math.floor(Math.random() * ICE_QS.length)];   // 가벼운 질문은 매번 다르게
+  ask("(The conversation is starting. Say hello, introduce yourself, and ask the child's name.)", true);
 }
 
 function stopChat() {
@@ -950,11 +948,27 @@ async function callGemini(system, contents, config) {
   return (data.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join("").trim();
 }
 
+// ---------- 아이스브레이킹: 처음 몇 번은 인사·이름·가벼운 질문, 그 다음 주제로 ----------
+const ICE_QS = ["How is the weather today?", "What did you eat today?", "What did you do after school today?",
+  "What is your favorite color?", "Do you have any pets?", "What day is it today?", "Are you happy or tired today?",
+  "What is your favorite snack?", "What time did you wake up today?"];
+let iceQ = ICE_QS[0];
+function flowGuide() {
+  // turns = 아이가 지금까지 말한 횟수
+  if (turns === 0) return "CONVERSATION STEP 1 (icebreaker): Say hi, tell your name and where you live in one short sentence, then ask the child's name (\"What's your name?\"). Do NOT talk about the topic yet.";
+  if (turns === 1) return "CONVERSATION STEP 2 (icebreaker): Say \"Nice to meet you, " + kid.name + "!\" (use the name the child said if it is " + kid.name + "). Then ask \"How are you today?\". Do NOT talk about the topic yet.";
+  if (turns === 2) return "CONVERSATION STEP 3 (icebreaker): React kindly to how they feel in a few words, then ask one fun small-talk question: \"" + iceQ + "\" Do NOT talk about the topic yet.";
+  if (turns === 3) return "CONVERSATION STEP 4: React to their answer in a few words, then smoothly move to today's topic: " +
+    (topic.id === "random" ? "ask if there is something they want to talk about today." : "say today's topic is \"" + topic.title + "\" and ask one easy question about it.");
+  return "Now talk about today's topic.";
+}
+
 function chatSystem() {
   return kid.prompt + buddyPrompt() + "\n\n" + LEVEL_GUIDE[kidLevel(kidId)] +
     " Follow this level for every reply. If the child clearly struggles, make it a little easier for the next reply." +
     "\n\nToday's topic: " + topic.title + ". " + topic.hint +
-    " Stay mostly on this topic, but it's okay to follow the child's interest if it is suitable." + COMMON_RULES;
+    " Stay mostly on this topic, but it's okay to follow the child's interest if it is suitable." +
+    "\n\n" + flowGuide() + COMMON_RULES;
 }
 
 // ---------- 영어 전용 지킴이 ----------
