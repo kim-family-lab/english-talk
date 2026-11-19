@@ -793,6 +793,13 @@ async function showParent(k) {
   else $("pTalks").innerHTML = '<p class="muted">오프라인이라 대화 내용을 불러오지 못했어요.</p>';
 }
 
+// 부모님 화면 자동 마이크 체크박스 (화면을 다시 그려도 동작하도록 한 번만 연결)
+$("pBody").addEventListener("change", async e => {
+  if (e.target.id !== "pAutoMic") return;
+  const k = pKid, a = { ...DEFAULT_AUTOMIC, ...(store.getJSON("c_config", {}).autoMic || {}), [k]: e.target.checked };
+  try { await saveConfig({ autoMic: a }); } catch (err) { alert("인터넷 연결 후 다시 해 주세요."); e.target.checked = !e.target.checked; }
+});
+
 function renderParent(k) {
   const s = loadStats(k), d = today(), n = s.stickers.length, K = KIDS[k];
   const todayN = s.sessions.filter(x => x.day === d).length;
@@ -814,6 +821,8 @@ function renderParent(k) {
       " · 한 번에 평균 " + (since7.length ? (since7.reduce((a, x) => a + x.avgWords, 0) / since7.length).toFixed(1) : "-") + "단어" +
       (() => { const hid = since7.reduce((a, x) => a + (x.hidden || 0), 0), sh = since7.reduce((a, x) => a + (x.shown || 0), 0);
         return hid ? " · 글자 보기 " + Math.round(sh / hid * 100) + "% (낮을수록 귀로 알아들음)" : ""; })() + "</p></div>" +
+    '<div class="psec"><h3>🎤 마이크</h3><label class="checkRow"><input type="checkbox" id="pAutoMic"' + (autoMicOn(k) ? " checked" : "") +
+      "> AI 대답이 끝나면 마이크 자동으로 켜기</label><p class='muted' style='margin:6px 0 0'>끄면 아이가 🎤 버튼을 눌러서 말합니다. 몇 초 동안 말이 없으면 자동으로 꺼집니다.</p></div>" +
     '<div class="psec"><h3>📈 영어 레벨 변화</h3>' + (hist.length
       ? "<ul class='plist'>" + hist.map(h => "<li>" + h.day + " · Lv." + h.level + " (" + whyKo[h.why] + ")</li>").join("") + "</ul>"
       : "<p class='muted'>대화 " + PLACEMENT + "번을 마치면 레벨이 자동으로 정해집니다. (지금 " + s.sessions.filter(x => x.stars > 0).length + "번)</p>") + "</div>" +
@@ -898,7 +907,7 @@ function showTopics(k, fromCloud) {
 function startChat(t) {
   if (limitReached(kidId)) { showTopics(kidId); return; }
   topic = t; history = []; timeUp = false; finished = false; turns = 0; kidLines = [];
-  aiHidden = 0; showCount = 0; replayCount = 0;
+  aiHidden = 0; showCount = 0; replayCount = 0; autoMicBroken = false;
   buddy = pickBuddy(kidId);
   $("messages").innerHTML = "";
   $("whoLabel").textContent = buddy.flag + " " + buddy.name + " · " + t.icon + " " + t.title;
@@ -925,7 +934,7 @@ function stopChat() {
 
 // ← 누르면: 대화 중이면 확인 창을 먼저 띄움 (브라우저 기본 창 대신 페이지 안 창 사용)
 function leaveChat() {
-  if (!timeUp && !finished) { $("leaveDlg").classList.add("open"); return; }
+  if (!timeUp && !finished) { stopListening(); $("leaveDlg").classList.add("open"); return; }
   doLeave();
 }
 function doLeave() {
@@ -1031,6 +1040,7 @@ async function ask(text, hidden) {
       return;
     }
   }
+  let ok = false;
   busy = true; setInputs(false); setStatus("Thinking...");
   if (!hidden) { addMsg(text, "me"); turns++; kidLines.push(text); }
   history.push({ role: "user", parts: [{ text }] });
@@ -1040,13 +1050,14 @@ async function ask(text, hidden) {
     history.push({ role: "model", parts: [{ text: reply }] });
     addMsg(reply, "ai");
     await speak(reply);
+    ok = true;
   } catch (err) {
     history.pop();
     addMsg("⚠️ 연결 오류: " + err.message, "note");
   }
   busy = false;
   if (timeUp) finishSession();
-  else { setInputs(true); setStatus("Tap the mic and talk!"); }
+  else { setInputs(true); setStatus("Tap the mic and talk!"); if (ok) maybeAutoListen(); }
 }
 
 function wrapUp() {
@@ -1281,25 +1292,40 @@ function stopListening() {
   listening = false; $("micBtn").classList.remove("listening");
 }
 
-$("micBtn").onclick = () => {
-  if (!SR) { alert("이 브라우저는 음성 인식을 지원하지 않습니다. 아이폰은 Safari, 안드로이드는 Chrome을 써 주세요. 아래 칸에 글자로 입력해도 됩니다."); return; }
-  if (listening) { stopListening(); return; }
-  try { speechSynthesis.cancel(); } catch (e) {}
+// 🎤 버튼 또는 자동 마이크(auto=true)로 듣기 시작
+let autoMicBroken = false;   // 이 휴대폰에서 자동 마이크가 막혀 있으면 이번 대화는 버튼 방식으로
+function startListening(auto) {
+  if (!SR) { if (!auto) alert("이 브라우저는 음성 인식을 지원하지 않습니다. 아이폰은 Safari, 안드로이드는 Chrome을 써 주세요. 아래 칸에 글자로 입력해도 됩니다."); return; }
+  if (listening || busy || timeUp || finished) return;
+  if (!auto) { try { speechSynthesis.cancel(); } catch (e) {} }
   rec = new SR();
   rec.lang = "en-US"; rec.interimResults = false; rec.maxAlternatives = 1;
+  let heard = false;
   rec.onresult = e => {
     const said = e.results[0][0].transcript.trim();
-    stopListening();
+    heard = true; stopListening();
     if (said) ask(said);
   };
   rec.onerror = e => {
     stopListening();
-    setStatus(e.error === "not-allowed" ? "마이크 권한을 허용해 주세요." : "I didn't hear you. Try again!");
+    if (auto && /not-allowed|service-not-allowed|audio-capture/.test(e.error)) {
+      autoMicBroken = true;
+      setStatus("Tap the mic and talk! 🎤");
+    } else setStatus(e.error === "not-allowed" ? "마이크 권한을 허용해 주세요." : "I didn't hear you. Tap the mic! 🎤");
   };
-  rec.onend = () => { if (listening) stopListening(); };
-  listening = true; $("micBtn").classList.add("listening"); setStatus("I'm listening... 👂");
-  try { rec.start(); } catch (e) { stopListening(); }
-};
+  rec.onend = () => { if (listening) { stopListening(); if (!heard && !busy && !timeUp && !finished) setStatus("Tap the mic and talk! 🎤"); } };
+  listening = true; $("micBtn").classList.add("listening"); setStatus(auto ? "Your turn! I'm listening... 👂" : "I'm listening... 👂");
+  try { rec.start(); } catch (e) { stopListening(); if (auto) { autoMicBroken = true; setStatus("Tap the mic and talk! 🎤"); } }
+}
+$("micBtn").onclick = () => { if (listening) { stopListening(); return; } startListening(false); };
+
+// AI가 말을 마치면 자동으로 마이크 켜기 (부모님 화면에서 아이별로 켜고 끔)
+const DEFAULT_AUTOMIC = { lucy: true, leo: false };
+function autoMicOn(k) { const a = store.getJSON("c_config", {}).autoMic || {}; return k in a ? !!a[k] : DEFAULT_AUTOMIC[k]; }
+function maybeAutoListen() {
+  if (!kidId || !autoMicOn(kidId) || autoMicBroken) return;
+  setTimeout(() => { if (!busy && !timeUp && !finished && !$("leaveDlg").classList.contains("open")) startListening(true); }, 400);
+}
 
 // ---------- 글자 입력 ----------
 function sendTyped() {
@@ -1361,10 +1387,10 @@ async function greetLocally() {
   addMsg(g, "ai");
   await speak(g);
   busy = false;
-  if (!timeUp && !finished) { setInputs(true); setStatus("Tap the mic and talk!"); }
+  if (!timeUp && !finished) { setInputs(true); setStatus("Tap the mic and talk!"); maybeAutoListen(); }
 }
 
-const APP_VERSION = "v14 (11/19 먼저 듣고 보기)";
+const APP_VERSION = "v15 (11/19 자동 마이크)";
 $("verLabel").textContent = APP_VERSION; $("verLabel2").textContent = APP_VERSION;
 refreshHome();
 cloudInit();   // 온라인 기록 연결 (실패하면 휴대폰에 저장해 두었다가 다음에 올림)
