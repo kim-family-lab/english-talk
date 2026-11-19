@@ -179,6 +179,7 @@
   <button class="kid-btn leo" data-kid="leo"><span class="pic">🐱</span><span class="meta">Leo<small id="homeLeo"></small></span></button>
   <button id="parentBtn">👨‍👩‍👧 Parents · 부모님</button>
   <div id="cloudState">☁️ connecting...</div>
+  <div class="muted" id="verLabel"></div>
 </section>
 
 <!-- 주제 고르기 화면 -->
@@ -258,7 +259,7 @@
 
 <!-- 설정 화면 (부모님용) -->
 <section id="settings" class="screen">
-  <h2 style="margin:0">설정</h2>
+  <h2 style="margin:0">설정 <small class="muted" id="verLabel2"></small></h2>
   <div>
     <label for="apiKey">Gemini API 키</label>
     <input id="apiKey" type="password" placeholder="AI Studio에서 만든 키">
@@ -1265,6 +1266,8 @@ function sendTyped() {
 $("sendBtn").onclick = sendTyped;
 $("typeInput").addEventListener("keydown", e => { if (e.key === "Enter") sendTyped(); });
 
+const APP_VERSION = "v11 (11/19 목소리 성별)";
+$("verLabel").textContent = APP_VERSION; $("verLabel2").textContent = APP_VERSION;
 refreshHome();
 cloudInit();   // 온라인 기록 연결 (실패하면 휴대폰에 저장해 두었다가 다음에 올림)
 
