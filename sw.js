@@ -1,5 +1,5 @@
 // 앱 설치용 최소 서비스 워커: 항상 최신 파일을 인터넷에서 받아오고(임시 저장본 무시), 끊겼을 때만 저장본 사용
-const CACHE = "english-talk-v17";
+const CACHE = "english-talk-v18";
 self.addEventListener("install", e => {
   self.skipWaiting();
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png"])));

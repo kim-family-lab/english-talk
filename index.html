@@ -295,6 +295,8 @@
     <div class="hint">▶로 들어 보고 남자/여자를 골라 주세요. 남자로 표시한 목소리가 있어야 남자 친구가 나옵니다. (이 휴대폰에만 저장)</div>
     <div id="voiceList"></div>
   </div>
+  <label class="checkRow"><input id="showAdults" type="checkbox"> 이 휴대폰에서 어른 버튼(Sally·Kim) 보이기</label>
+  <div class="hint">아빠·엄마 휴대폰에서만 켜 주세요. 켜면 비밀번호 없이 바로 들어갑니다. 아이 휴대폰은 꺼 두면 버튼이 안 보입니다.</div>
   <label class="checkRow"><input id="testMode" type="checkbox"> 테스트 모드 (대화 1분, 하루 제한 없음)</label>
   <div class="hint">테스트 모드로 한 대화는 기록·스티커에 저장되지 않습니다. 상 설정과 기록은 👨‍👩‍👧 부모님 화면에 있습니다.</div>
   <div class="row">
@@ -742,6 +744,7 @@ function scoreSession(k, s, lines) {
 
 // ---------- 화면 이동 ----------
 function refreshHome() {
+  document.querySelector(".adultRow").style.display = store.get("showAdults") === "1" ? "" : "none";   // 아이 폰에서는 숨김
   ["sally", "kim"].forEach(k => {
     const s = loadStats(k);
     $(k === "sally" ? "homeSally" : "homeKim").textContent = s.level ? "Lv." + s.level : "🔍";
@@ -756,8 +759,7 @@ function refreshHome() {
 }
 document.querySelectorAll(".kid-btn").forEach(b => b.onclick = async () => {
   warmVoice();
-  // 어른 버튼은 부모님 비밀번호로 잠금 (아이들이 하루 제한 없는 어른 모드로 들어가지 못하게)
-  if (KIDS[b.dataset.kid].adult && !(await askPin())) return;
+  // 어른 버튼은 ⚙️에서 "어른 버튼 보이기"를 켠 휴대폰에만 보이고, 비밀번호 없이 바로 들어감
   showTopics(b.dataset.kid);
 });
 $("backBtn").onclick = leaveChat;
@@ -770,6 +772,7 @@ $("resDoneBtn").onclick = () => showTopics(kidId);
 function openSettings() {
   $("apiKey").value = store.get("geminiKey"); $("model").value = store.get("geminiModel");
   $("testMode").checked = store.get("testMode") === "1";
+  $("showAdults").checked = store.get("showAdults") === "1";
   $("voiceInfo").textContent = voiceSummary();
   renderVoiceList();
   show("settings");
@@ -782,6 +785,7 @@ $("saveSettings").onclick = () => {
   store.set("geminiKey", $("apiKey").value.trim());
   store.set("geminiModel", $("model").value.trim());
   store.set("testMode", $("testMode").checked ? "1" : "");
+  store.set("showAdults", $("showAdults").checked ? "1" : "");
   refreshHome(); show("home");
 };
 
@@ -1471,7 +1475,7 @@ function avatar(k, px) {
 }
 $("picSally").innerHTML = avatar("sally", 48);
 
-const APP_VERSION = "v17 (11/19 귀여운 하마)";
+const APP_VERSION = "v18 (11/19 어른 버튼 휴대폰별)";
 $("verLabel").textContent = APP_VERSION; $("verLabel2").textContent = APP_VERSION;
 refreshHome();
 cloudInit();   // 온라인 기록 연결 (실패하면 휴대폰에 저장해 두었다가 다음에 올림)
