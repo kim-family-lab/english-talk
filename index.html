@@ -372,7 +372,42 @@ Talk like a gentle, cheerful teacher.
     ]
   }
 };
-const RANDOM_HINT = "There is no fixed topic. First ask if they have something they want to talk about today. If they say yes, talk about that (if it is suitable for a young child). If they don't know, suggest one fun surprise topic yourself.";
+// ---------- 대화 친구 (대화마다 무작위) ----------
+// 미국·영국 중심 + 여러 나라. lang = 읽어 주는 억양, g = 목소리 성별(휴대폰에 그 목소리가 있을 때만), w = 나올 확률 가중치
+const BUDDIES = [
+  { id: "emma",   name: "Emma",   flag: "🇺🇸", from: "New York, USA",        lang: "en-US", g: "f", w: 3, likes: "dogs, pizza, and riding the subway" },
+  { id: "noah",   name: "Noah",   flag: "🇺🇸", from: "Texas, USA",           lang: "en-US", g: "m", w: 3, likes: "farm animals, baseball, and BBQ" },
+  { id: "sofia",  name: "Sofia",  flag: "🇺🇸", from: "California, USA",      lang: "en-US", g: "f", w: 3, likes: "space, the beach, and science experiments" },
+  { id: "marcus", name: "Marcus", flag: "🇺🇸", from: "Chicago, USA",         lang: "en-US", g: "m", w: 2, likes: "basketball, drawing comics, and snow days" },
+  { id: "olivia", name: "Olivia", flag: "🇬🇧", from: "London, UK",           lang: "en-GB", g: "f", w: 3, likes: "books, parks, and baking cakes" },
+  { id: "jack",   name: "Jack",   flag: "🇬🇧", from: "Manchester, UK",       lang: "en-GB", g: "m", w: 3, likes: "football (soccer), video games, and fish and chips" },
+  { id: "amelia", name: "Amelia", flag: "🇬🇧", from: "Edinburgh, Scotland",  lang: "en-GB", g: "f", w: 2, likes: "castles, horses, and playing the piano" },
+  { id: "harry",  name: "Harry",  flag: "🇬🇧", from: "Bristol, UK",          lang: "en-GB", g: "m", w: 2, likes: "dinosaurs, Lego, and rainy-day games" },
+  { id: "mia",    name: "Mia",    flag: "🇦🇺", from: "Sydney, Australia",    lang: "en-AU", g: "f", w: 1, likes: "kangaroos, surfing, and summer at Christmas" },
+  { id: "liam",   name: "Liam",   flag: "🇨🇦", from: "Toronto, Canada",      lang: "en-US", g: "m", w: 1, likes: "ice hockey, maple syrup, and snowmen" },
+  { id: "aanya",  name: "Aanya",  flag: "🇮🇳", from: "Bangalore, India",     lang: "en-IN", g: "f", w: 1, likes: "cricket, drawing, and festivals with lights" },
+  { id: "kofi",   name: "Kofi",   flag: "🇬🇭", from: "Accra, Ghana",         lang: "en-GB", g: "m", w: 1, likes: "drums, soccer, and telling funny stories" }
+];
+let buddy = BUDDIES[0];
+function pickBuddy(k) {
+  const last = store.get("lastBuddy_" + k);
+  const pool = BUDDIES.filter(b => b.id !== last);           // 지난번과 같은 친구는 안 나오게
+  let r = Math.random() * pool.reduce((a, b) => a + b.w, 0);
+  const b = pool.find(x => (r -= x.w) < 0) || pool[0];
+  store.set("lastBuddy_" + k, b.id);
+  return b;
+}
+function buddyPrompt() {
+  const uk = buddy.lang === "en-GB", au = buddy.lang === "en-AU";
+  return "\n\nYOUR CHARACTER: Your name is " + buddy.name + ". You live in " + buddy.from + ". You like " + buddy.likes + ". " +
+    "Introduce yourself at the start (name and where you live). Sometimes share a small, fun detail about life where you live. " +
+    (uk ? "Use British English words and spelling (mum, football, colour, holiday, biscuit). " :
+     au ? "Use Australian English words (mate, arvo) but keep it easy to understand. " :
+          "Use American English words and spelling (mom, soccer, color, vacation, cookie). ") +
+    "You are a friendly kid-safe character, not a real person. Never give real addresses, phone numbers, or social media.";
+}
+
+const RANDOM_HINT ="There is no fixed topic. First ask if they have something they want to talk about today. If they say yes, talk about that (if it is suitable for a young child). If they don't know, suggest one fun surprise topic yourself.";
 
 const COMMON_RULES = `
 Rules for every reply:
@@ -774,8 +809,8 @@ async function loadTalks(k) {
     if (pKid !== k) return;
     const rows = snap.docs.map(d => d.data());
     $("pTalks").innerHTML = rows.length ? rows.map(t =>
-      '<details class="talk"><summary>' + escapeHtml(t.day + " · " + t.topic + " · " + "⭐".repeat(t.stars || 0) + " · Lv." + (t.level || "-")) + "</summary>" +
-        (t.lines || []).map(l => '<div class="line"><b>' + (l.r === "kid" ? KIDS[k].name : "Buddy") + ":</b> " + escapeHtml(l.t) + "</div>").join("") +
+      '<details class="talk"><summary>' + escapeHtml(t.day + " · " + t.topic + " · " + "⭐".repeat(t.stars || 0) + " · Lv." + (t.level || "-") + (t.buddy ? " · " + t.buddy : "")) + "</summary>" +
+        (t.lines || []).map(l => '<div class="line"><b>' + (l.r === "kid" ? KIDS[k].name : escapeHtml((t.buddy || "Buddy").split(" (")[0])) + ":</b> " + escapeHtml(l.t) + "</div>").join("") +
         ((t.expressions || []).length ? '<div class="line"><b>오늘의 표현:</b> ' + escapeHtml(t.expressions.join(" / ")) + "</div>" : "") +
       "</details>").join("") : '<p class="muted">아직 저장된 대화가 없어요.</p>';
   } catch (e) {
@@ -840,8 +875,10 @@ function showTopics(k, fromCloud) {
 function startChat(t) {
   if (limitReached(kidId)) { showTopics(kidId); return; }
   topic = t; history = []; timeUp = false; finished = false; turns = 0; kidLines = [];
+  buddy = pickBuddy(kidId);
   $("messages").innerHTML = "";
-  $("whoLabel").textContent = kid.emoji + " " + kid.name + " · " + t.icon + " " + t.title;
+  $("whoLabel").textContent = buddy.flag + " " + buddy.name + " · " + t.icon + " " + t.title;
+  addMsg("Today's buddy: " + buddy.flag + " " + buddy.name + " from " + buddy.from, "note");
   $("micBtn").style.background = kid.color;
   $("timer").style.background = kid.soft;
   timeLeft = (store.get("testMode") === "1" ? 1 : kid.minutes) * 60; drawTimer();
@@ -853,8 +890,8 @@ function startChat(t) {
   setInputs(true);
   show("chat");
   const opener = topic.id === "random"
-    ? "(The conversation is starting. Greet " + kid.name + " warmly by name, then ask if there is something they want to talk about today.)"
-    : "(The conversation is starting. Greet " + kid.name + " warmly by name, say today's topic is \"" + topic.title + "\", and ask one easy question about it.)";
+    ? "(The conversation is starting. Greet " + kid.name + " warmly by name, say your name and where you live in one short sentence, then ask if there is something they want to talk about today.)"
+    : "(The conversation is starting. Greet " + kid.name + " warmly by name, say your name and where you live in one short sentence, say today's topic is \"" + topic.title + "\", and ask one easy question about it.)";
   ask(opener, true);
 }
 
@@ -910,7 +947,7 @@ async function callGemini(system, contents, config) {
 }
 
 function chatSystem() {
-  return kid.prompt + "\n\n" + LEVEL_GUIDE[kidLevel(kidId)] +
+  return kid.prompt + buddyPrompt() + "\n\n" + LEVEL_GUIDE[kidLevel(kidId)] +
     " Follow this level for every reply. If the child clearly struggles, make it a little easier for the next reply." +
     "\n\nToday's topic: " + topic.title + ". " + topic.hint +
     " Stay mostly on this topic, but it's okay to follow the child's interest if it is suitable." + COMMON_RULES;
@@ -1004,6 +1041,7 @@ async function finishSession() {
   const expressions = await loadExpressions();
   if (!test) saveTalk(kidId, {
     ts: Date.now(), day, topic: topic.title, level: kidLevel(kidId), stars: sc.stars, turns: sc.turns,
+    buddy: buddy.flag + " " + buddy.name + " (" + buddy.from + ")",
     lines: history.filter(m => !m.parts[0].text.startsWith("(")).map(m => ({ r: m.role === "user" ? "kid" : "ai", t: m.parts[0].text })),
     expressions
   });
@@ -1123,10 +1161,16 @@ function loadVoices() { try { voices = speechSynthesis.getVoices(); } catch (e) 
 loadVoices();
 try { speechSynthesis.onvoiceschanged = loadVoices; } catch (e) {}
 
+// 대화 친구의 나라 억양(en-US/en-GB/en-AU/en-IN)과 성별에 맞는 목소리를 휴대폰에 있는 것 중에서 고름
+const FEMALE_V = /(female|woman|samantha|karen|moira|tessa|victoria|zira|aria|jenny|libby|sonia|natasha|serena|kate|catherine|google us english|google uk english female)/i;
+const MALE_V = /(\bmale\b|\bman\b|daniel|arthur|oliver|george|ryan|guy|fred|alex|tom|rishi|aaron|james|william|google uk english male)/i;
 function pickVoice() {
+  const norm = l => (l || "").replace("_", "-").toLowerCase();
   const en = voices.filter(v => /^en(-|_)/i.test(v.lang));
-  const female = /(samantha|karen|moira|tessa|victoria|zira|female|woman|aria|jenny|google us english)/i;
-  return en.find(v => female.test(v.name) && /US/i.test(v.lang)) || en.find(v => female.test(v.name)) || en.find(v => /US/i.test(v.lang)) || en[0] || null;
+  const same = en.filter(v => norm(v.lang) === buddy.lang.toLowerCase());
+  const want = buddy.g === "m" ? MALE_V : FEMALE_V, avoid = buddy.g === "m" ? FEMALE_V : MALE_V;
+  return same.find(v => want.test(v.name)) || same.find(v => !avoid.test(v.name)) || same[0] ||
+    en.find(v => norm(v.lang) === "en-us" && want.test(v.name)) || en.find(v => norm(v.lang) === "en-us") || en[0] || null;
 }
 
 function speak(text) {
@@ -1135,11 +1179,12 @@ function speak(text) {
       speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
       const v = pickVoice(); if (v) u.voice = v;
-      u.lang = v ? v.lang : "en-US";
-      u.rate = Math.min(1.1, kid.rate + (kidLevel(kidId) - 1) * 0.04); u.pitch = 1.1;
+      u.lang = v ? v.lang : buddy.lang;
+      u.rate = Math.min(1.1, kid.rate + (kidLevel(kidId) - 1) * 0.04);
+      u.pitch = buddy.g === "m" ? 0.9 : 1.1;   // 휴대폰 목소리가 하나뿐이어도 남녀 느낌을 조금 살림
       u.onend = resolve; u.onerror = resolve;
       setTimeout(resolve, 20000); // 소리가 안 끝나도 멈추지 않게
-      setStatus("🔊 Listening to " + kid.name + "'s buddy...");
+      setStatus("🔊 " + buddy.flag + " " + buddy.name + " is talking...");
       speechSynthesis.speak(u);
     } catch (e) { resolve(); }
   });
