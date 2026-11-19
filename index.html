@@ -36,6 +36,7 @@
   .kid-btn.adult .pic { font-size: 36px; width: 56px; height: 56px; }
   .kid-btn.adult .meta small { font-size: 13px; }
   .kid-btn.sally { background: #9a8fd6; }
+  .kid-btn.sally .pic { background: #fff; }
   .kid-btn.kim { background: #a98467; }
   .kid-btn:active { transform: translateY(3px); box-shadow: 0 3px 0 rgba(0,0,0,.12); }
   #settingsBtn { position: absolute; top: 14px; right: 14px; background: none; border: none; font-size: 26px; opacity: .6; }
@@ -193,7 +194,7 @@
   <button class="kid-btn lucy" data-kid="lucy"><span class="pic">🐷</span><span class="meta">Lucy<small id="homeLucy"></small></span></button>
   <button class="kid-btn leo" data-kid="leo"><span class="pic">🐱</span><span class="meta">Leo<small id="homeLeo"></small></span></button>
   <div class="adultRow">
-    <button class="kid-btn adult sally" data-kid="sally"><span class="pic">🦛</span><span class="meta">Sally<small id="homeSally"></small></span></button>
+    <button class="kid-btn adult sally" data-kid="sally"><span class="pic" id="picSally"></span><span class="meta">Sally<small id="homeSally"></small></span></button>
     <button class="kid-btn adult kim" data-kid="kim"><span class="pic">🦥</span><span class="meta">Kim<small id="homeKim"></small></span></button>
   </div>
   <button id="parentBtn">👨‍👩‍👧 Parents · 부모님</button>
@@ -928,7 +929,7 @@ function showTopics(k, fromCloud) {
     return;
   }
   kidId = k; kid = KIDS[k];
-  $("topicWho").textContent = kid.emoji + " " + kid.name;
+  $("topicWho").innerHTML = avatar(k, 26) + " " + escapeHtml(kid.name);
   $("boardBtn").style.background = kid.soft;
   $("boardBtn").textContent = "⭐ " + loadStats(k).stickers.length;
   $("boardBtn").style.display = kid.adult ? "none" : "";
@@ -1199,7 +1200,7 @@ function renderResult(sc, firstToday, s, reached, lv, newItems, test) {
   } else {
     $("resEng").style.display = "none";
   }
-  $("resEmoji").textContent = kid.emoji;
+  $("resEmoji").innerHTML = avatar(kidId, 76);
   $("resTitle").textContent = (sc.stars === 3 ? "Amazing, " : sc.stars === 2 ? "Great job, " : "Good try, ") + kid.name + "!";
   $("resStars").innerHTML = [0, 1, 2].map(i =>
     '<span class="' + (i < sc.stars ? "" : "off") + '" style="animation-delay:' + (0.2 + i * 0.35) + 's">⭐</span>').join("");
@@ -1461,7 +1462,16 @@ async function greetLocally() {
   if (!timeUp && !finished) { setInputs(true); setStatus("Tap the mic and talk!"); maybeAutoListen(); }
 }
 
-const APP_VERSION = "v16 (11/19 어른 Sally·Kim)";
+// ---------- 직접 그린 캐릭터 그림 (이모지 대신) ----------
+const AVATAR_SVG = { sally: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"> <circle cx="24" cy="22" r="10" fill="#8f82cf"/><circle cx="24" cy="22" r="5" fill="#f4a7c0"/> <circle cx="76" cy="22" r="10" fill="#8f82cf"/><circle cx="76" cy="22" r="5" fill="#f4a7c0"/> <ellipse cx="50" cy="46" rx="36" ry="32" fill="#a99be3"/> <ellipse cx="50" cy="70" rx="33" ry="22" fill="#c9bff3"/> <ellipse cx="38" cy="64" rx="4" ry="5.5" fill="#7a6cc0"/><ellipse cx="62" cy="64" rx="4" ry="5.5" fill="#7a6cc0"/> <path d="M41 79 Q50 86 59 79" stroke="#7a6cc0" stroke-width="3" fill="none" stroke-linecap="round"/> <circle cx="36" cy="40" r="6" fill="#2f2a3d"/><circle cx="64" cy="40" r="6" fill="#2f2a3d"/> <circle cx="38" cy="38" r="2.2" fill="#fff"/><circle cx="66" cy="38" r="2.2" fill="#fff"/> <ellipse cx="22" cy="54" rx="7" ry="4.5" fill="#f4a7c0" opacity=".8"/><ellipse cx="78" cy="54" rx="7" ry="4.5" fill="#f4a7c0" opacity=".8"/> <path d="M44 20 Q50 12 56 20" stroke="#8f82cf" stroke-width="3" fill="none" stroke-linecap="round"/></svg>` };
+function avatar(k, px) {
+  const s = AVATAR_SVG[k];
+  if (!s) return KIDS[k].emoji;
+  return '<img alt="" style="width:' + px + 'px;height:' + px + 'px;vertical-align:middle" src="data:image/svg+xml,' + encodeURIComponent(s) + '">';
+}
+$("picSally").innerHTML = avatar("sally", 48);
+
+const APP_VERSION = "v17 (11/19 귀여운 하마)";
 $("verLabel").textContent = APP_VERSION; $("verLabel2").textContent = APP_VERSION;
 refreshHome();
 cloudInit();   // 온라인 기록 연결 (실패하면 휴대폰에 저장해 두었다가 다음에 올림)
