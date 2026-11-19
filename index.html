@@ -60,6 +60,11 @@
   .msg.ai { align-self: flex-start; background: var(--ai); border: 1px solid var(--line); border-bottom-left-radius: 6px; }
   .msg.me { align-self: flex-end; background: var(--me); border-bottom-right-radius: 6px; }
   .msg.note { align-self: center; background: none; color: var(--muted); font-size: 15px; }
+  .msg .ctl { display: inline-flex; gap: 6px; margin-left: 6px; vertical-align: middle; }
+  .msg .ctl button { border: none; background: #f2ece4; border-radius: 12px; padding: 4px 9px; font-size: 15px; }
+  .msg.hid { color: var(--muted); font-style: italic; }
+  .msg.hid .ctl { margin-left: 8px; }
+  .msg.hid .sh { background: var(--gold); color: #5a3d00; font-style: normal; font-weight: 700; }
   .bottom { padding: 12px 16px 20px; background: var(--card); border-top: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; gap: 10px; }
   #micBtn { width: 96px; height: 96px; border-radius: 50%; border: none; font-size: 44px; color: #fff; box-shadow: 0 5px 0 rgba(0,0,0,.15); }
   #micBtn.listening { animation: pulse 1s infinite; }
@@ -806,13 +811,16 @@ function renderParent(k) {
       "<div><b>" + todayN + "/" + DAILY_MAX + "</b><span>오늘</span></div>" +
     "</div><p class='muted' style='margin:10px 0 0'>최근 7일: 대화 " + since7.length + "번 · 평균 별 " +
       (since7.length ? (since7.reduce((a, x) => a + x.stars, 0) / since7.length).toFixed(1) : "-") +
-      " · 한 번에 평균 " + (since7.length ? (since7.reduce((a, x) => a + x.avgWords, 0) / since7.length).toFixed(1) : "-") + "단어</p></div>" +
+      " · 한 번에 평균 " + (since7.length ? (since7.reduce((a, x) => a + x.avgWords, 0) / since7.length).toFixed(1) : "-") + "단어" +
+      (() => { const hid = since7.reduce((a, x) => a + (x.hidden || 0), 0), sh = since7.reduce((a, x) => a + (x.shown || 0), 0);
+        return hid ? " · 글자 보기 " + Math.round(sh / hid * 100) + "% (낮을수록 귀로 알아들음)" : ""; })() + "</p></div>" +
     '<div class="psec"><h3>📈 영어 레벨 변화</h3>' + (hist.length
       ? "<ul class='plist'>" + hist.map(h => "<li>" + h.day + " · Lv." + h.level + " (" + whyKo[h.why] + ")</li>").join("") + "</ul>"
       : "<p class='muted'>대화 " + PLACEMENT + "번을 마치면 레벨이 자동으로 정해집니다. (지금 " + s.sessions.filter(x => x.stars > 0).length + "번)</p>") + "</div>" +
     '<div class="psec"><h3>🗓 최근 대화 기록</h3>' + (recent.length
       ? "<ul class='plist'>" + recent.map(x => "<li>" + x.day + " · " + escapeHtml(x.topic) + " · " + "⭐".repeat(x.stars) +
-          " · " + x.turns + "번 말함 · 평균 " + x.avgWords + "단어</li>").join("") + "</ul>"
+          " · " + x.turns + "번 말함 · 평균 " + x.avgWords + "단어" +
+          (x.hidden ? " · 👀 글자 보기 " + x.shown + "/" + x.hidden + " · 🔁 " + (x.replays || 0) : "") + "</li>").join("") + "</ul>"
       : "<p class='muted'>아직 기록이 없어요.</p>") + "</div>" +
     '<div class="psec"><h3>💬 대화 내용</h3><div id="pTalks"><p class="muted">불러오는 중...</p></div></div>';
 }
@@ -890,6 +898,7 @@ function showTopics(k, fromCloud) {
 function startChat(t) {
   if (limitReached(kidId)) { showTopics(kidId); return; }
   topic = t; history = []; timeUp = false; finished = false; turns = 0; kidLines = [];
+  aiHidden = 0; showCount = 0; replayCount = 0;
   buddy = pickBuddy(kidId);
   $("messages").innerHTML = "";
   $("whoLabel").textContent = buddy.flag + " " + buddy.name + " · " + t.icon + " " + t.title;
@@ -933,9 +942,29 @@ function drawTimer() {
   $("timer").textContent = "⏱ " + Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0");
 }
 
+// ---------- 먼저 듣고, 나중에 보기 ----------
+// 레벨 3 이상: AI 대답 글자를 가려 두고 소리로 먼저 듣게 함. 👀 Show 누르면 글자가 보임. 🔁 는 다시 듣기
+const HIDE_FROM_LEVEL = 3;
+let aiHidden = 0, showCount = 0, replayCount = 0;
 function addMsg(text, who) {
   const d = document.createElement("div");
-  d.className = "msg " + who; d.textContent = text;
+  d.className = "msg " + who;
+  if (who === "ai") {
+    const replay = () => { if (!listening) { replayCount++; speak(text).then(() => { if (!busy && !timeUp && !finished) setStatus("Tap the mic and talk!"); }); } };
+    const showText = () => {
+      d.className = "msg ai"; d.textContent = text;
+      const c = document.createElement("span"); c.className = "ctl";
+      const r = document.createElement("button"); r.textContent = "🔁"; r.onclick = replay;
+      c.appendChild(r); d.appendChild(c);
+    };
+    if (kidId && kidLevel(kidId) >= HIDE_FROM_LEVEL) {
+      aiHidden++;
+      d.classList.add("hid");
+      d.innerHTML = '🎧 Listen first!<span class="ctl"><button class="rp">🔁</button><button class="sh">👀 Show</button></span>';
+      d.querySelector(".rp").onclick = replay;
+      d.querySelector(".sh").onclick = () => { showCount++; showText(); };
+    } else showText();
+  } else d.textContent = text;
   $("messages").appendChild(d);
   $("messages").scrollTop = $("messages").scrollHeight;
 }
@@ -1056,7 +1085,8 @@ async function finishSession() {
   const overLimit = store.get("testMode") !== "1" && s.sessions.filter(x => x.day === day).length >= DAILY_MAX;
   if (overLimit) sc.stars = 0;
   for (let i = 0; i < sc.stars; i++) s.stickers.push({ type: "star", day });
-  s.sessions.push({ day, topic: topic.title, turns: sc.turns, avgWords: sc.avgWords, newWords: sc.newWords, stars: sc.stars });
+  s.sessions.push({ day, topic: topic.title, turns: sc.turns, avgWords: sc.avgWords, newWords: sc.newWords, stars: sc.stars,
+    hidden: aiHidden, shown: showCount, replays: replayCount });
   s.words = [...new Set([...s.words, ...sc.fresh])].slice(-3000);
   const lv = updateLevel(kidId, s);
   if (!test) saveStats(kidId, s);          // 테스트 모드 대화는 저장하지 않음
@@ -1071,6 +1101,7 @@ async function finishSession() {
   if (!test) saveTalk(kidId, {
     ts: Date.now(), day, topic: topic.title, level: kidLevel(kidId), stars: sc.stars, turns: sc.turns,
     buddy: buddy.flag + " " + buddy.name + " (" + buddy.from + ")",
+    hidden: aiHidden, shown: showCount, replays: replayCount,
     lines: history.filter(m => !m.parts[0].text.startsWith("(")).map(m => ({ r: m.role === "user" ? "kid" : "ai", t: m.parts[0].text })),
     expressions
   });
@@ -1333,7 +1364,7 @@ async function greetLocally() {
   if (!timeUp && !finished) { setInputs(true); setStatus("Tap the mic and talk!"); }
 }
 
-const APP_VERSION = "v13 (11/19 시작 빠르게)";
+const APP_VERSION = "v14 (11/19 먼저 듣고 보기)";
 $("verLabel").textContent = APP_VERSION; $("verLabel2").textContent = APP_VERSION;
 refreshHome();
 cloudInit();   // 온라인 기록 연결 (실패하면 휴대폰에 저장해 두었다가 다음에 올림)
