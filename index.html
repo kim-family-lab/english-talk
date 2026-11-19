@@ -75,6 +75,14 @@
   .bottom { padding: 12px 16px 20px; background: var(--card); border-top: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; gap: 10px; }
   #micBtn { width: 96px; height: 96px; border-radius: 50%; border: none; font-size: 44px; color: #fff; box-shadow: 0 5px 0 rgba(0,0,0,.15); }
   #micBtn.listening { animation: pulse 1s infinite; }
+  #micBtn.nudge { animation: pulse .6s 6; box-shadow: 0 0 0 6px rgba(255,197,49,.6); }
+  .micRow { display: flex; align-items: center; gap: 14px; }
+  #doneBtn { display: none; border: none; border-radius: 18px; padding: 14px 18px; font-size: 18px; font-weight: 700; background: #3bb273; color: #fff; }
+  .msg.me.live { opacity: .75; border: 2px dashed #9cc9e6; }
+  .ptabs { flex-wrap: wrap; }
+  .ptabs button { min-width: 40%; }
+  .lvBtns { display: flex; gap: 10px; margin-top: 10px; }
+  .lvBtns button { flex: 1; border: none; border-radius: 12px; padding: 10px; font-size: 16px; font-weight: 700; background: #ece5dc; }
   #micBtn:disabled { opacity: .45; }
   @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }
   #status { font-size: 15px; color: var(--muted); min-height: 20px; text-align: center; }
@@ -226,7 +234,7 @@
   </div>
   <div id="messages"></div>
   <div class="bottom">
-    <button id="micBtn">🎤</button>
+    <div class="micRow"><button id="micBtn">🎤</button><button id="doneBtn">✅ Done</button></div>
     <div id="status">Tap the mic and talk!</div>
     <div class="typeRow">
       <input id="typeInput" placeholder="Or type in English..." autocomplete="off" maxlength="120">
@@ -314,6 +322,8 @@
   <div class="ptabs">
     <button data-k="lucy">🐷 Lucy</button>
     <button data-k="leo">🐱 Leo</button>
+    <button data-k="sally">🦛 Sally</button>
+    <button data-k="kim">🦥 Kim</button>
   </div>
   <div id="pBody"></div>
   <div class="psec">
@@ -857,6 +867,20 @@ async function showParent(k) {
   else $("pTalks").innerHTML = '<p class="muted">오프라인이라 대화 내용을 불러오지 못했어요.</p>';
 }
 
+// 레벨 직접 올리기·내리기 (부모님 화면)
+$("pBody").addEventListener("click", e => {
+  const b = e.target.closest("[data-lv]");
+  if (!b) return;
+  const k = pKid, s = loadStats(k), K = KIDS[k], max = K.maxLevel || MAX_LEVEL;
+  const cur = s.level || K.startLevel, next = Math.min(max, Math.max(1, cur + Number(b.dataset.lv)));
+  if (next === cur && s.level) return alert(next === max ? "가장 높은 레벨이에요." : "가장 낮은 레벨이에요.");
+  s.level = next;
+  s.levelAt = s.sessions.filter(x => x.stars > 0).length;   // 자동 조정은 지금부터 다시 셈
+  (s.levelHist = s.levelHist || []).push({ day: today(), level: next, why: "manual" });
+  saveStats(k, s);
+  renderParent(k);
+});
+
 // 부모님 화면 자동 마이크 체크박스 (화면을 다시 그려도 동작하도록 한 번만 연결)
 $("pBody").addEventListener("change", async e => {
   if (e.target.id !== "pAutoMic") return;
@@ -870,24 +894,35 @@ function renderParent(k) {
   const stars = s.stickers.filter(x => x.type === "star").length;
   const recent = s.sessions.slice(-14).reverse();
   const hist = (s.levelHist || []).slice().reverse();
-  const whyKo = { placed: "처음 배치", up: "⬆ 올라감", down: "⬇ 내려감" };
+  const whyKo = { placed: "처음 배치", up: "⬆ 올라감", down: "⬇ 내려감", manual: "✋ 직접 변경" };
   const since7 = s.sessions.filter(x => dayDiff(x.day, d) < 7);
   $("pBody").innerHTML =
-    '<div class="psec"><h3>' + K.emoji + " " + K.name + " 요약</h3><div class='pgrid'>" +
-      "<div><b>" + n + "</b><span>스티커</span></div>" +
-      "<div><b>" + stars + "</b><span>별</span></div>" +
-      "<div><b>" + currentStreak(s) + "</b><span>연속 출석</span></div>" +
-      "<div><b>" + s.days.length + "</b><span>출석일</span></div>" +
-      "<div><b>" + (s.level ? "Lv." + s.level : "탐색 중") + "</b><span>영어 레벨</span></div>" +
-      "<div><b>" + todayN + "/" + DAILY_MAX + "</b><span>오늘</span></div>" +
-    "</div><p class='muted' style='margin:10px 0 0'>최근 7일: 대화 " + since7.length + "번 · 평균 별 " +
-      (since7.length ? (since7.reduce((a, x) => a + x.stars, 0) / since7.length).toFixed(1) : "-") +
+    '<div class="psec"><h3>' + avatar(k, 22) + " " + K.name + " 요약</h3><div class='pgrid'>" +
+      (K.adult
+        ? "<div><b>" + s.sessions.length + "</b><span>전체 대화</span></div>" +
+          "<div><b>" + todayN + "</b><span>오늘 대화</span></div>" +
+          "<div><b>" + (s.sessions.length ? (s.sessions.reduce((a, x) => a + x.avgWords, 0) / s.sessions.length).toFixed(1) : "-") + "</b><span>평균 단어</span></div>" +
+          "<div><b>" + s.words.length + "</b><span>써 본 단어</span></div>" +
+          "<div><b>" + (s.level ? "Lv." + s.level : "탐색 중") + "</b><span>영어 레벨</span></div>" +
+          "<div><b>" + new Set(s.sessions.map(x => x.day)).size + "</b><span>대화한 날</span></div>"
+        : "<div><b>" + n + "</b><span>스티커</span></div>" +
+          "<div><b>" + stars + "</b><span>별</span></div>" +
+          "<div><b>" + currentStreak(s) + "</b><span>연속 출석</span></div>" +
+          "<div><b>" + s.days.length + "</b><span>출석일</span></div>" +
+          "<div><b>" + (s.level ? "Lv." + s.level : "탐색 중") + "</b><span>영어 레벨</span></div>" +
+          "<div><b>" + todayN + "/" + DAILY_MAX + "</b><span>오늘</span></div>") +
+    "</div><p class='muted' style='margin:10px 0 0'>최근 7일: 대화 " + since7.length + "번" + (K.adult ? "" : " · 평균 별 " +
+      (since7.length ? (since7.reduce((a, x) => a + x.stars, 0) / since7.length).toFixed(1) : "-")) +
+      " · 새 단어 " + since7.reduce((a, x) => a + (x.newWords || 0), 0) + "개" +
       " · 한 번에 평균 " + (since7.length ? (since7.reduce((a, x) => a + x.avgWords, 0) / since7.length).toFixed(1) : "-") + "단어" +
       (() => { const hid = since7.reduce((a, x) => a + (x.hidden || 0), 0), sh = since7.reduce((a, x) => a + (x.shown || 0), 0);
         return hid ? " · 글자 보기 " + Math.round(sh / hid * 100) + "% (낮을수록 귀로 알아들음)" : ""; })() + "</p></div>" +
     '<div class="psec"><h3>🎤 마이크</h3><label class="checkRow"><input type="checkbox" id="pAutoMic"' + (autoMicOn(k) ? " checked" : "") +
-      "> AI 대답이 끝나면 마이크 자동으로 켜기</label><p class='muted' style='margin:6px 0 0'>끄면 아이가 🎤 버튼을 눌러서 말합니다. 몇 초 동안 말이 없으면 자동으로 꺼집니다.</p></div>" +
-    '<div class="psec"><h3>📈 영어 레벨 변화</h3>' + (hist.length
+      "> AI 대답이 끝나면 마이크 자동으로 켜기</label><p class='muted' style='margin:6px 0 0'>끄면 🎤 버튼을 눌러서 말합니다. 말을 멈추고 " + (K.adult ? 3 : 2) + "초 지나면 보내지고, ✅ Done을 누르면 바로 보냅니다.</p></div>" +
+    '<div class="psec"><h3>📈 영어 레벨 변화</h3>' +
+      "<p style='margin:0 0 8px'>지금 <b>Lv." + kidLevel(k) + "</b>" + (s.level ? "" : " (탐색 중, 시작 레벨)") + " · 범위 1~" + (K.maxLevel || MAX_LEVEL) + "</p>" +
+      "<div class='lvBtns'><button data-lv='-1'>⬇ 한 단계 내리기</button><button data-lv='1'>⬆ 한 단계 올리기</button></div>" +
+      "<p class='muted' style='margin:8px 0 10px'>직접 바꾸면 그 뒤로는 바꾼 레벨에서 다시 자동으로 오르내립니다.</p>" + (hist.length
       ? "<ul class='plist'>" + hist.map(h => "<li>" + h.day + " · Lv." + h.level + " (" + whyKo[h.why] + ")</li>").join("") + "</ul>"
       : "<p class='muted'>대화 " + PLACEMENT + "번을 마치면 레벨이 자동으로 정해집니다. (지금 " + s.sessions.filter(x => x.stars > 0).length + "번)</p>") + "</div>" +
     '<div class="psec"><h3>🗓 최근 대화 기록</h3>' + (recent.length
@@ -1025,10 +1060,14 @@ let aiHidden = 0, showCount = 0, replayCount = 0;
 function addMsg(text, who) {
   const d = document.createElement("div");
   d.className = "msg " + who;
+  let ret;
   if (who === "ai") {
-    const replay = () => { if (!listening) { replayCount++; speak(text).then(() => { if (!busy && !timeUp && !finished) setStatus("Tap the mic and talk!"); }); } };
+    let cur = text, visible = false;   // cur: 지금까지 받은 대답 (스트리밍으로 늘어남)
+    const replay = () => { if (!listening && !busy) { replayCount++; speak(cur).then(() => { if (!busy && !timeUp && !finished) setStatus("Tap the mic and talk!"); }); } };
+    ret = { set(t) { cur = t; if (visible) { d.firstChild.nodeValue = t; $("messages").scrollTop = $("messages").scrollHeight; } } };
     const showText = () => {
-      d.className = "msg ai"; d.textContent = text;
+      visible = true;
+      d.className = "msg ai"; d.textContent = cur;
       const c = document.createElement("span"); c.className = "ctl";
       const r = document.createElement("button"); r.textContent = "🔁"; r.onclick = replay;
       c.appendChild(r); d.appendChild(c);
@@ -1043,6 +1082,7 @@ function addMsg(text, who) {
   } else d.textContent = text;
   $("messages").appendChild(d);
   $("messages").scrollTop = $("messages").scrollHeight;
+  return ret;
 }
 function setStatus(t) { $("status").textContent = t; }
 function setInputs(on) {
@@ -1062,6 +1102,46 @@ async function callGemini(system, contents, config) {
   const data = await res.json();
   if (!res.ok) throw new Error((data.error && data.error.message) || ("HTTP " + res.status));
   return (data.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join("").trim();
+}
+
+// 스트리밍: 대답을 조금씩 받으면서 onText(지금까지 전체)를 부름 → 첫 문장부터 바로 읽기 시작
+async function callGeminiStream(system, contents, config, onText) {
+  const res = await fetch(
+    "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(store.get("geminiModel")) + ":streamGenerateContent?alt=sse",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": store.get("geminiKey") },
+      body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents, generationConfig: config })
+    }
+  );
+  if (!res.ok) {
+    let msg = "HTTP " + res.status;
+    try { const d = await res.json(); msg = (d.error || (d[0] && d[0].error) || {}).message || msg; } catch (e) {}
+    throw new Error(msg);
+  }
+  let full = "";
+  const take = line => {
+    line = line.trim();
+    if (!line.startsWith("data:")) return;
+    try {
+      const j = JSON.parse(line.slice(5));
+      const t = (j.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join("");
+      if (t) { full += t; onText(full); }
+    } catch (e) {}
+  };
+  if (res.body && res.body.getReader) {
+    const reader = res.body.getReader(), dec = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf("\n")) >= 0) { take(buf.slice(0, i)); buf = buf.slice(i + 1); }
+    }
+    take(buf);
+  } else (await res.text()).split("\n").forEach(take);
+  return full.trim();
 }
 
 // ---------- 아이스브레이킹: 처음 몇 번은 인사·이름·가벼운 질문, 그 다음 주제로 ----------
@@ -1100,7 +1180,7 @@ function englishOnly(reply) {
 async function ask(text, hidden) {
   if (busy || finished) return;
   if (!hidden) {
-    text = text.slice(0, MAX_INPUT);
+    text = text.slice(0, kid.adult ? 800 : 400);   // 말로 길게 해도 잘리지 않게 (글자 입력칸은 120자 제한)
     if (HANGUL.test(text)) {   // 한글 입력은 AI에게 보내지 않음
       addMsg(text, "me");
       addMsg("🇺🇸 English only! Try saying it in English. 영어로 말해 볼까요?", "note");
@@ -1111,12 +1191,36 @@ async function ask(text, hidden) {
   busy = true; setInputs(false); setStatus("Thinking...");
   if (!hidden) { addMsg(text, "me"); turns++; kidLines.push(text); }
   history.push({ role: "user", parts: [{ text }] });
+  let bubble = null;
   try {
-    const reply = englishOnly(await callGemini(chatSystem(), history, { temperature: 0.8, maxOutputTokens: 200 })
-      || "Sorry, can you say that again?");
+    const cfg = { temperature: 0.8, maxOutputTokens: kid.adult ? 300 : 200 };
+    let done = 0, shown = "", last = Promise.resolve(), got = false;
+    const say = sent => {   // 한 문장씩: 화면에 붙이고 바로 읽기 (휴대폰 음성은 차례로 이어서 읽음)
+      sent = sent.trim();
+      if (!sent || HANGUL.test(sent)) return;
+      if (!bubble) { try { speechSynthesis.cancel(); } catch (e) {} bubble = addMsg("", "ai"); }
+      shown += (shown ? " " : "") + sent; bubble.set(shown);
+      setStatus("🔊 " + buddy.flag + " " + buddy.name + " is talking...");
+      last = speakQueued(sent);
+    };
+    let full;
+    try {
+      full = await callGeminiStream(chatSystem(), history, cfg, all => {
+        got = true;
+        const rest = all.slice(done), re = /[^.!?]*[.!?]+["')\]]*\s+/g;
+        let m, used = 0;
+        while ((m = re.exec(rest))) { used = re.lastIndex; say(m[0]); }
+        done += used;
+      });
+    } catch (e) {
+      if (got) throw e;
+      full = await callGemini(chatSystem(), history, cfg);   // 스트리밍이 안 되면 예전 방식으로
+    }
+    say(full.slice(done));
+    const reply = shown || englishOnly(full || "Sorry, can you say that again?");
+    if (!shown) say(reply);
     history.push({ role: "model", parts: [{ text: reply }] });
-    addMsg(reply, "ai");
-    await speak(reply);
+    await last;
     ok = true;
   } catch (err) {
     history.pop();
@@ -1343,16 +1447,20 @@ function voiceSummary() {
 }
 
 function speak(text) {
+  try { speechSynthesis.cancel(); } catch (e) {}
+  return speakQueued(text);
+}
+// 앞 문장이 끝나면 이어서 읽음 (취소하지 않고 줄 세움)
+function speakQueued(text) {
   return new Promise(resolve => {
     try {
-      speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
       const v = pickVoice(); if (v) u.voice = v;
       u.lang = v ? v.lang : buddy.lang;
       u.rate = Math.min(1.1, kid.rate + (kidLevel(kidId) - 1) * 0.04);
       u.pitch = 1.0;
       u.onend = resolve; u.onerror = resolve;
-      setTimeout(resolve, 20000); // 소리가 안 끝나도 멈추지 않게
+      setTimeout(resolve, 8000 + text.length * 120); // 소리가 안 끝나도 멈추지 않게
       setStatus("🔊 " + buddy.flag + " " + buddy.name + " is talking...");
       speechSynthesis.speak(u);
     } catch (e) { resolve(); }
@@ -1360,12 +1468,88 @@ function speak(text) {
 }
 
 // ---------- 음성 인식 ----------
+// 계속 듣다가 조용해지면(아이 2초, 어른 3초) 보냄. 말하는 동안 받아 적은 글자가 보이고, ✅ Done 으로 바로 보낼 수도 있음.
+// 휴대폰이 중간에 마이크를 끊으면 다시 켜서 이어 붙임.
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-let rec = null, listening = false;
-
+let rec = null, listening = false, micOn = false, micAuto = false, autoRetry = 0;
+let micCommitted = "", micSession = "", micInterim = "", micStart = 0, lastHeard = 0, silenceT = null, noSpeechT = null, liveEl = null;
+const silenceMs = () => (kid && kid.adult ? 3000 : 2000);
+const noSpeechMs = () => (kid && kid.adult ? 12000 : 8000);
+function mergeFinal(acc, t) {   // 안드로이드가 같은 말을 겹쳐서 줄 때 중복 제거
+  if (!acc) return t;
+  const A = acc.toLowerCase(), T = t.toLowerCase();
+  if (T.startsWith(A)) return t;
+  if (A.endsWith(T)) return acc;
+  return acc + " " + t;
+}
+function micText() { return [micCommitted, micSession, micInterim].filter(Boolean).join(" ").replace(/\s+/g, " ").trim(); }
+function liveUpdate() {
+  if (!liveEl) { liveEl = document.createElement("div"); liveEl.className = "msg me live"; $("messages").appendChild(liveEl); }
+  const t = micText();
+  liveEl.textContent = t ? t + " …" : "👂 …";
+  $("messages").scrollTop = $("messages").scrollHeight;
+}
+function micUiOff() {
+  listening = false; micOn = false;
+  clearTimeout(silenceT); clearTimeout(noSpeechT);
+  $("micBtn").classList.remove("listening"); $("doneBtn").style.display = "none";
+  if (liveEl) { liveEl.remove(); liveEl = null; }
+}
+// 보내지 않고 끄기 (나가기, 시간 끝 등)
 function stopListening() {
-  if (rec && listening) { try { rec.stop(); } catch (e) {} }
-  listening = false; $("micBtn").classList.remove("listening");
+  const r = rec; rec = null; micUiOff();
+  if (r) { try { r.abort(); } catch (e) {} }
+}
+// 지금까지 들은 말을 보내기
+function submitSpeech() {
+  const t = micText();
+  stopListening();
+  if (t) ask(t);
+  else setStatus("Tap the mic and talk! 🎤");
+}
+function micFailed(auto, msg) {
+  stopListening();
+  if (auto) { autoMicBroken = true; $("micBtn").classList.add("nudge"); setTimeout(() => $("micBtn").classList.remove("nudge"), 4000); }
+  setStatus(msg || "Tap the mic and talk! 🎤");
+}
+function openRec() {
+  const r = new SR(); rec = r;
+  r.lang = "en-US"; r.continuous = true; r.interimResults = true; r.maxAlternatives = 1;
+  micSession = ""; micInterim = "";
+  let started = false;
+  r.onstart = () => { started = true; };
+  r.onresult = e => {
+    if (rec !== r) return;
+    let fin = "", inter = "";
+    for (let i = 0; i < e.results.length; i++) {
+      const x = e.results[i], t = (x[0].transcript || "").trim();
+      if (!t) continue;
+      if (x.isFinal) fin = mergeFinal(fin, t); else inter += (inter ? " " : "") + t;
+    }
+    micSession = fin; micInterim = inter; lastHeard = Date.now();
+    clearTimeout(noSpeechT);
+    liveUpdate();
+    clearTimeout(silenceT);
+    silenceT = setTimeout(() => { if (micOn) submitSpeech(); }, silenceMs());
+  };
+  r.onerror = e => {
+    if (rec !== r) return;
+    if (/not-allowed|service-not-allowed|audio-capture/.test(e.error))
+      micFailed(micAuto, e.error === "not-allowed" && !micAuto ? "마이크 권한을 허용해 주세요." : "Tap the mic and talk! 🎤");
+  };
+  r.onend = () => {
+    if (rec !== r || !micOn) return;   // 휴대폰이 스스로 마이크를 끊은 경우
+    micCommitted = micText(); micSession = ""; micInterim = "";
+    if (micCommitted && Date.now() - lastHeard >= silenceMs()) return submitSpeech();
+    try { openRec(); } catch (e) { micCommitted ? submitSpeech() : micFailed(micAuto); }   // 다시 켜서 이어 듣기
+  };
+  r.start();
+  // 켜졌다는 신호가 2초 안에 없으면 자동 마이크는 한 번 더 시도
+  setTimeout(() => {
+    if (rec === r && micOn && !started && !micText()) {
+      if (micAuto && autoRetry < 1) { autoRetry++; stopListening(); setTimeout(() => startListening(true), 500); }
+    }
+  }, 2000);
 }
 
 // 🎤 버튼 또는 자동 마이크(auto=true)로 듣기 시작
@@ -1373,34 +1557,30 @@ let autoMicBroken = false;   // 이 휴대폰에서 자동 마이크가 막혀 �
 function startListening(auto) {
   if (!SR) { if (!auto) alert("이 브라우저는 음성 인식을 지원하지 않습니다. 아이폰은 Safari, 안드로이드는 Chrome을 써 주세요. 아래 칸에 글자로 입력해도 됩니다."); return; }
   if (listening || busy || timeUp || finished) return;
-  if (!auto) { try { speechSynthesis.cancel(); } catch (e) {} }
-  rec = new SR();
-  rec.lang = "en-US"; rec.interimResults = false; rec.maxAlternatives = 1;
-  let heard = false;
-  rec.onresult = e => {
-    const said = e.results[0][0].transcript.trim();
-    heard = true; stopListening();
-    if (said) ask(said);
-  };
-  rec.onerror = e => {
-    stopListening();
-    if (auto && /not-allowed|service-not-allowed|audio-capture/.test(e.error)) {
-      autoMicBroken = true;
-      setStatus("Tap the mic and talk! 🎤");
-    } else setStatus(e.error === "not-allowed" ? "마이크 권한을 허용해 주세요." : "I didn't hear you. Tap the mic! 🎤");
-  };
-  rec.onend = () => { if (listening) { stopListening(); if (!heard && !busy && !timeUp && !finished) setStatus("Tap the mic and talk! 🎤"); } };
-  listening = true; $("micBtn").classList.add("listening"); setStatus(auto ? "Your turn! I'm listening... 👂" : "I'm listening... 👂");
-  try { rec.start(); } catch (e) { stopListening(); if (auto) { autoMicBroken = true; setStatus("Tap the mic and talk! 🎤"); } }
+  if (!auto) { autoRetry = 0; try { speechSynthesis.cancel(); } catch (e) {} }
+  micAuto = auto; micCommitted = ""; micSession = ""; micInterim = ""; micStart = Date.now(); lastHeard = 0;
+  micOn = true; listening = true;
+  $("micBtn").classList.remove("nudge"); $("micBtn").classList.add("listening"); $("doneBtn").style.display = "inline-block";
+  setStatus((auto ? "Your turn! " : "") + "I'm listening... 👂 Tap ✅ when you finish.");
+  liveUpdate();
+  clearTimeout(noSpeechT);
+  noSpeechT = setTimeout(() => { if (micOn && !micText()) { stopListening(); setStatus("Tap the mic and talk! 🎤"); } }, noSpeechMs());
+  try { openRec(); }
+  catch (e) {
+    if (auto && autoRetry < 1) { autoRetry++; stopListening(); setTimeout(() => startListening(true), 600); }
+    else micFailed(auto);
+  }
 }
-$("micBtn").onclick = () => { if (listening) { stopListening(); return; } startListening(false); };
+// 듣는 중에 🎤나 ✅를 누르면 바로 보냄
+$("micBtn").onclick = () => { if (listening) { submitSpeech(); return; } startListening(false); };
+$("doneBtn").onclick = () => { if (listening) submitSpeech(); };
 
 // AI가 말을 마치면 자동으로 마이크 켜기 (부모님 화면에서 아이별로 켜고 끔)
 const DEFAULT_AUTOMIC = { lucy: true, leo: false, sally: true, kim: true };
 function autoMicOn(k) { const a = store.getJSON("c_config", {}).autoMic || {}; return k in a ? !!a[k] : DEFAULT_AUTOMIC[k]; }
 function maybeAutoListen() {
   if (!kidId || !autoMicOn(kidId) || autoMicBroken) return;
-  setTimeout(() => { if (!busy && !timeUp && !finished && !$("leaveDlg").classList.contains("open")) startListening(true); }, 400);
+  setTimeout(() => { if (!busy && !timeUp && !finished && !$("leaveDlg").classList.contains("open")) { autoRetry = 0; startListening(true); } }, 300);
 }
 
 // ---------- 글자 입력 ----------
@@ -1474,8 +1654,9 @@ function avatar(k, px) {
   return '<img alt="" style="width:' + px + 'px;height:' + px + 'px;vertical-align:middle" src="data:image/svg+xml,' + encodeURIComponent(s) + '">';
 }
 $("picSally").innerHTML = avatar("sally", 48);
+document.querySelector('.ptabs button[data-k="sally"]').innerHTML = avatar("sally", 20) + " Sally";
 
-const APP_VERSION = "v18 (11/19 어른 버튼 휴대폰별)";
+const APP_VERSION = "v19 (11/19 마이크·속도·어른 기록)";
 $("verLabel").textContent = APP_VERSION; $("verLabel2").textContent = APP_VERSION;
 refreshHome();
 cloudInit();   // 온라인 기록 연결 (실패하면 휴대폰에 저장해 두었다가 다음에 올림)
