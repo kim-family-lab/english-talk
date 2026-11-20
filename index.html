@@ -355,7 +355,7 @@
   <div class="box">
     <div class="em">⭐</div>
     <h3>Leave now?</h3>
-    <p>Stars come when you finish the timer!<br>지금 나가면 별을 받을 수 없어요</p>
+    <p id="leaveMsg">Stars come when you finish the timer!<br>지금 나가면 별을 받을 수 없어요</p>
     <div class="btnRow">
       <button class="bigBtn light" id="leaveYes">Leave</button>
       <button class="bigBtn" id="leaveNo">Keep talking</button>
@@ -543,7 +543,8 @@ function updateLevel(k, s) {
 
 const DAILY_MAX = 2;                  // 하루에 끝까지 할 수 있는 대화 횟수 (3번째부터는 시작 불가)
 function todayCount(k) { const d = today(); return loadStats(k).sessions.filter(x => x.day === d).length; }
-function limitReached(k) { return !KIDS[k].adult && store.get("testMode") !== "1" && todayCount(k) >= DAILY_MAX; }
+// 하루 2번을 다 한 뒤에도 대화는 계속 가능 (보너스 연습: 별·스티커 없음)
+function bonusMode(k) { return !KIDS[k].adult && store.get("testMode") !== "1" && todayCount(k) >= DAILY_MAX; }
 const DEFAULT_PRIZES = ["아이스크림 🍦", "주말 게임 30분 🎮", "원하는 선물 🎁"];
 
 // ---------- 저장소 (실패해도 동작하도록) ----------
@@ -895,9 +896,10 @@ function renderParent(k) {
           "<div><b>" + currentStreak(s) + "</b><span>연속 출석</span></div>" +
           "<div><b>" + s.days.length + "</b><span>출석일</span></div>" +
           "<div><b>" + (s.level ? "Lv." + s.level : "탐색 중") + "</b><span>영어 레벨</span></div>" +
-          "<div><b>" + todayN + "/" + DAILY_MAX + "</b><span>오늘</span></div>") +
+          "<div><b>" + todayN + "번</b><span>오늘 (별은 " + DAILY_MAX + "번까지)</span></div>") +
     "</div><p class='muted' style='margin:10px 0 0'>최근 7일: 대화 " + since7.length + "번" + (K.adult ? "" : " · 평균 별 " +
-      (since7.length ? (since7.reduce((a, x) => a + x.stars, 0) / since7.length).toFixed(1) : "-")) +
+      (() => { const st = since7.filter(x => !x.bonus); return st.length ? (st.reduce((a, x) => a + x.stars, 0) / st.length).toFixed(1) : "-"; })()) +
+      (since7.some(x => x.bonus) ? " · 보너스 연습 " + since7.filter(x => x.bonus).length + "번" : "") +
       " · 새 단어 " + since7.reduce((a, x) => a + (x.newWords || 0), 0) + "개" +
       " · 한 번에 평균 " + (since7.length ? (since7.reduce((a, x) => a + x.avgWords, 0) / since7.length).toFixed(1) : "-") + "단어" +
       (() => { const hid = since7.reduce((a, x) => a + (x.hidden || 0), 0), sh = since7.reduce((a, x) => a + (x.shown || 0), 0);
@@ -955,12 +957,12 @@ function showTopics(k, fromCloud) {
   $("boardBtn").style.background = kid.soft;
   $("boardBtn").textContent = "⭐ " + loadStats(k).stickers.length;
   $("boardBtn").style.display = kid.adult ? "none" : "";
-  const locked = limitReached(k), cnt = todayCount(k);
+  const bonus = bonusMode(k), cnt = todayCount(k), locked = false;
   $("topicSub").textContent = kid.adult
     ? "Level " + kidLevel(k) + " · " + kid.minutes + " min · Pick a topic!"
-    : locked
-    ? "You did " + DAILY_MAX + " talks today. Amazing! 🌙 See you tomorrow!"
-    : "Today: " + cnt + " / " + DAILY_MAX + " talks · Pick one!";
+    : bonus
+    ? "🌙 Bonus practice — no stars today, just for fun! (" + cnt + " talks today)"
+    : "Today: " + cnt + " / " + DAILY_MAX + " star talks · Pick one!";
   const used = usedTopics(k);
   const grid = $("topicGrid"); grid.innerHTML = "";
   grid.style.opacity = locked ? ".4" : "";
@@ -990,7 +992,6 @@ function showTopics(k, fromCloud) {
 
 // ---------- 대화 ----------
 function startChat(t) {
-  if (limitReached(kidId)) { showTopics(kidId); return; }
   topic = t; history = []; timeUp = false; finished = false; turns = 0; kidLines = [];
   aiHidden = 0; showCount = 0; replayCount = 0; autoMicBroken = false; liveReconnects = 0;
   buddy = pickBuddy(kidId);
@@ -1021,7 +1022,11 @@ function stopChat() {
 
 // ← 누르면: 대화 중이면 확인 창을 먼저 띄움 (브라우저 기본 창 대신 페이지 안 창 사용)
 function leaveChat() {
-  if (!timeUp && !finished) { stopListening(); $("leaveDlg").classList.add("open"); return; }
+  if (!timeUp && !finished) {
+    stopListening();
+    $("leaveMsg").innerHTML = kid.adult || bonusMode(kidId) ? "Do you want to stop talking now?<br>대화를 그만할까요?" : "Stars come when you finish the timer!<br>지금 나가면 별을 받을 수 없어요";
+    $("leaveDlg").classList.add("open"); return;
+  }
   doLeave();
 }
 function doLeave() {
@@ -1257,10 +1262,11 @@ async function finishSession() {
   }
   // 자정 무렵 등으로 이미 2번 한 뒤라면 별은 주지 않음 (테스트 모드 제외)
   const overLimit = !kid.adult && store.get("testMode") !== "1" && s.sessions.filter(x => x.day === day).length >= DAILY_MAX;
-  if (overLimit) sc.stars = 0;
+  if (overLimit) sc.stars = 0;   // 보너스 연습: 별 없음 (레벨 계산에서도 빠짐)
+  sc.bonus = overLimit;
   if (!kid.adult) for (let i = 0; i < sc.stars; i++) s.stickers.push({ type: "star", day });
   s.sessions.push({ day, topic: topic.title, turns: sc.turns, avgWords: sc.avgWords, newWords: sc.newWords, stars: sc.stars,
-    hidden: aiHidden, shown: showCount, replays: replayCount });
+    hidden: aiHidden, shown: showCount, replays: replayCount, ...(sc.bonus ? { bonus: true } : {}) });
   s.words = [...new Set([...s.words, ...sc.fresh])].slice(-3000);
   const lv = updateLevel(kidId, s);
   if (!test) saveStats(kidId, s);          // 테스트 모드 대화는 저장하지 않음
@@ -1331,6 +1337,12 @@ function renderResult(sc, firstToday, s, reached, lv, newItems, test) {
     $("resCheer").innerHTML = "<h3>Today's talk</h3><p>🗣️ You spoke " + sc.turns + " times · about " + sc.avgWords +
       " words each · " + sc.newWords + " new words</p><p class='muted'>Level " + kidLevel(kidId) + "</p>";
     if (lv && lv.kind === "up") $("resEng").innerHTML = "<h3>⬆️ Level Up!</h3><p>You are now <b>Level " + lv.level + "</b>. Your buddy will talk more naturally. 💪</p>";
+  }
+  if (sc.bonus) {   // 보너스 연습: 별 없이 칭찬만
+    $("resTitle").textContent = "Bonus practice, " + kid.name + "! 🌙";
+    $("resStars").innerHTML = "";
+    $("resAttend").innerHTML = '<span class="badge">🌙 Extra practice · no stars today</span>';
+    $("resCheer").innerHTML = "<h3>Wow, extra practice! 💪</h3><p>🗣️ You spoke " + sc.turns + " times. Your English gets stronger every time!</p>";
   }
   $("resBoardBtn").style.display = kid.adult ? "none" : "";
   if (test) $("resAttend").innerHTML = '<span class="badge">🧪 테스트 모드 · 저장 안 됨</span>';
@@ -1909,7 +1921,7 @@ function avatar(k, px) {
 $("picSally").innerHTML = avatar("sally", 48);
 document.querySelector('.ptabs button[data-k="sally"]').innerHTML = avatar("sally", 20) + " Sally";
 
-const APP_VERSION = "v24 (11/20 음소거 없앰·마이크 표시)";
+const APP_VERSION = "v25 (11/20 보너스 연습)";
 $("verLabel").textContent = APP_VERSION; $("verLabel2").textContent = APP_VERSION;
 refreshHome();
 cloudInit();   // 온라인 기록 연결 (실패하면 휴대폰에 저장해 두었다가 다음에 올림)
