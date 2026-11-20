@@ -290,11 +290,12 @@
     <div class="hint">키는 이 휴대폰 브라우저에만 저장되고, 코드에는 들어가지 않습니다.</div>
   </div>
   <div>
-    <label for="model">모델 이름</label>
-    <input id="model" type="text" placeholder="예: gemini-3.5-flash-lite">
+    <label for="model">글 모델 이름 (선택)</label>
+    <input id="model" type="text" placeholder="gemini-3.5-flash-lite">
+    <div class="hint">비워 두면 gemini-3.5-flash-lite를 씁니다. 보통은 안 넣어도 됩니다.</div>
   </div>
   <div>
-    <label for="liveModel">⚡ Live 모델 이름 (목소리로 바로 대화)</label>
+    <label for="liveModel">⚡ Live 모델 이름 (선택)</label>
     <input id="liveModel" type="text" placeholder="gemini-3.8-live">
     <div class="hint">비워 두면 gemini-3.8-live를 씁니다. 모든 대화가 Live로 진행되고, Live 연결이 안 될 때만 위의 모델로 대신 대화합니다.</div>
   </div>
@@ -945,8 +946,8 @@ function markTopicUsed() {
 function isTest() { return store.get("testMode") === "1"; }
 
 function showTopics(k, fromCloud) {
-  if (!store.get("geminiKey") || !store.get("geminiModel")) {
-    alert("먼저 ⚙️ 설정에서 API 키와 모델 이름을 넣어 주세요.");
+  if (!store.get("geminiKey")) {
+    alert("먼저 ⚙️ 설정에서 API 키를 넣어 주세요.");
     return;
   }
   kidId = k; kid = KIDS[k];
@@ -1079,7 +1080,7 @@ function setInputs(on) {
 // ---------- Gemini 호출 ----------
 async function callGemini(system, contents, config) {
   const res = await fetch(
-    "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(store.get("geminiModel")) + ":generateContent",
+    "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(textModel()) + ":generateContent",
     {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": store.get("geminiKey") },
@@ -1091,10 +1092,13 @@ async function callGemini(system, contents, config) {
   return (data.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join("").trim();
 }
 
+// 글 모델: 비워 두면 기본값 (Live가 안 될 때 대화, 오늘의 표현 만들기에 사용)
+function textModel() { return store.get("geminiModel") || "gemini-3.5-flash-lite"; }
+
 // 스트리밍: 대답을 조금씩 받으면서 onText(지금까지 전체)를 부름 → 첫 문장부터 바로 읽기 시작
 async function callGeminiStream(system, contents, config, onText) {
   const res = await fetch(
-    "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(store.get("geminiModel")) + ":streamGenerateContent?alt=sse",
+    "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(textModel()) + ":streamGenerateContent?alt=sse",
     {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": store.get("geminiKey") },
@@ -1891,7 +1895,7 @@ function avatar(k, px) {
 $("picSally").innerHTML = avatar("sally", 48);
 document.querySelector('.ptabs button[data-k="sally"]').innerHTML = avatar("sally", 20) + " Sally";
 
-const APP_VERSION = "v22 (11/20 모두 Live·정리)";
+const APP_VERSION = "v23 (11/20 모델 이름 생략 가능)";
 $("verLabel").textContent = APP_VERSION; $("verLabel2").textContent = APP_VERSION;
 refreshHome();
 cloudInit();   // 온라인 기록 연결 (실패하면 휴대폰에 저장해 두었다가 다음에 올림)
