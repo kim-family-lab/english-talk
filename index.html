@@ -298,6 +298,11 @@
     <input id="model" type="text" placeholder="예: gemini-3.5-flash-lite">
   </div>
   <div>
+    <label for="liveModel">⚡ Live 모델 이름 (목소리로 바로 대화)</label>
+    <input id="liveModel" type="text" placeholder="gemini-3.8-live">
+    <div class="hint">비워 두면 gemini-3.8-live를 씁니다. Live를 쓸지는 👨‍👩‍👧 부모님 화면에서 사람별로 정합니다.</div>
+  </div>
+  <div>
     <label>🔊 이 휴대폰 영어 목소리</label>
     <div class="hint" id="voiceInfo"></div>
     <div class="hint">▶로 들어 보고 남자/여자를 골라 주세요. 남자로 표시한 목소리가 있어야 남자 친구가 나옵니다. (이 휴대폰에만 저장)</div>
@@ -786,7 +791,7 @@ $("resBoardBtn").onclick = () => showBoard();
 $("resDoneBtn").onclick = () => showTopics(kidId);
 
 function openSettings() {
-  $("apiKey").value = store.get("geminiKey"); $("model").value = store.get("geminiModel");
+  $("apiKey").value = store.get("geminiKey"); $("model").value = store.get("geminiModel"); $("liveModel").value = store.get("liveModel");
   $("testMode").checked = store.get("testMode") === "1";
   $("showAdults").checked = store.get("showAdults") === "1";
   $("voiceInfo").textContent = voiceSummary();
@@ -802,6 +807,7 @@ $("cancelSettings").onclick = () => show("home");
 $("saveSettings").onclick = () => {
   store.set("geminiKey", $("apiKey").value.trim());
   store.set("geminiModel", $("model").value.trim());
+  store.set("liveModel", $("liveModel").value.trim());
   store.set("testMode", $("testMode").checked ? "1" : "");
   store.set("showAdults", $("showAdults").checked ? "1" : "");
   refreshHome(); show("home");
@@ -891,6 +897,11 @@ $("pBody").addEventListener("click", e => {
 
 // 부모님 화면 자동 마이크 체크박스 (화면을 다시 그려도 동작하도록 한 번만 연결)
 $("pBody").addEventListener("change", async e => {
+  if (e.target.id === "pLive") {
+    const k = pKid, a = { ...DEFAULT_LIVE, ...(store.getJSON("c_config", {}).live || {}), [k]: e.target.checked };
+    try { await saveConfig({ live: a }); } catch (err) { alert("인터넷 연결 후 다시 해 주세요."); e.target.checked = !e.target.checked; }
+    return;
+  }
   if (e.target.id !== "pAutoMic") return;
   const k = pKid, a = { ...DEFAULT_AUTOMIC, ...(store.getJSON("c_config", {}).autoMic || {}), [k]: e.target.checked };
   try { await saveConfig({ autoMic: a }); } catch (err) { alert("인터넷 연결 후 다시 해 주세요."); e.target.checked = !e.target.checked; }
@@ -925,6 +936,8 @@ function renderParent(k) {
       " · 한 번에 평균 " + (since7.length ? (since7.reduce((a, x) => a + x.avgWords, 0) / since7.length).toFixed(1) : "-") + "단어" +
       (() => { const hid = since7.reduce((a, x) => a + (x.hidden || 0), 0), sh = since7.reduce((a, x) => a + (x.shown || 0), 0);
         return hid ? " · 글자 보기 " + Math.round(sh / hid * 100) + "% (낮을수록 귀로 알아들음)" : ""; })() + "</p></div>" +
+    '<div class="psec"><h3>⚡ Live 대화</h3><label class="checkRow"><input type="checkbox" id="pLive"' + (liveOn(k) ? " checked" : "") +
+      "> 목소리로 바로 대화하기 (Gemini Live)</label><p class='muted' style='margin:6px 0 0'>대답이 훨씬 빠르고 친구마다 진짜 남녀 목소리가 나옵니다. 한 번 대화는 최대 " + LIVE_MAX_MIN + "분. 연결이 안 되면 자동으로 기존 방식으로 대화합니다.</p></div>" +
     '<div class="psec"><h3>🎤 마이크</h3><label class="checkRow"><input type="checkbox" id="pAutoMic"' + (autoMicOn(k) ? " checked" : "") +
       "> AI 대답이 끝나면 마이크 자동으로 켜기</label><p class='muted' style='margin:6px 0 0'>끄면 🎤 버튼을 눌러서 말합니다. 말을 멈추고 " + (K.adult ? 3 : 2) + "초 지나면 보내지고, ✅ Done을 누르면 바로 보냅니다.</p></div>" +
     '<div class="psec"><h3>📈 영어 레벨 변화</h3>' +
@@ -1024,7 +1037,7 @@ function startChat(t) {
   addMsg("Today's buddy: " + buddy.flag + " " + buddy.name + " from " + buddy.from, "note");
   $("micBtn").style.background = kid.color;
   $("timer").style.background = kid.soft;
-  timeLeft = (store.get("testMode") === "1" ? 1 : kid.minutes) * 60; drawTimer();
+  timeLeft = (store.get("testMode") === "1" ? 1 : (useLive() ? Math.min(kid.minutes, LIVE_MAX_MIN) : kid.minutes)) * 60; drawTimer();
   clearInterval(timerId);
   timerId = setInterval(() => {
     timeLeft--; drawTimer();
@@ -1033,11 +1046,13 @@ function startChat(t) {
   setInputs(true);
   show("chat");
   iceQ = ICE_QS[Math.floor(Math.random() * ICE_QS.length)];   // 가벼운 질문은 매번 다르게
-  greetLocally();   // 첫 인사는 AI를 기다리지 않고 바로 (시작 지연 줄이기)
+  if (useLive()) startLive();   // ⚡ Live: 목소리로 바로 대화 (실패하면 기존 방식으로)
+  else greetLocally();   // 첫 인사는 AI를 기다리지 않고 바로 (시작 지연 줄이기)
 }
 
 function stopChat() {
   clearInterval(timerId);
+  stopLive();
   stopListening();
   try { speechSynthesis.cancel(); } catch (e) {}
 }
@@ -1065,13 +1080,16 @@ function drawTimer() {
 // 레벨 3 이상: AI 대답 글자를 가려 두고 소리로 먼저 듣게 함. 👀 Show 누르면 글자가 보임. 🔁 는 다시 듣기
 const HIDE_FROM_LEVEL = 3;
 let aiHidden = 0, showCount = 0, replayCount = 0;
-function addMsg(text, who) {
+function addMsg(text, who, opts) {
   const d = document.createElement("div");
   d.className = "msg " + who;
   let ret;
   if (who === "ai") {
     let cur = text, visible = false;   // cur: 지금까지 받은 대답 (스트리밍으로 늘어남)
-    const replay = () => { if (!listening && !busy) { replayCount++; speak(cur).then(() => { if (!busy && !timeUp && !finished) setStatus("Tap the mic and talk!"); }); } };
+    const replay = () => {
+      if (opts && opts.replay) { replayCount++; opts.replay(); return; }   // Live: 실제 목소리 다시 듣기
+      if (!listening && !busy) { replayCount++; speak(cur).then(() => { if (!busy && !timeUp && !finished) setStatus("Tap the mic and talk!"); }); }
+    };
     ret = { set(t) { cur = t; if (visible) { d.firstChild.nodeValue = t; $("messages").scrollTop = $("messages").scrollHeight; } } };
     const showText = () => {
       visible = true;
@@ -1240,6 +1258,7 @@ async function ask(text, hidden) {
 }
 
 function wrapUp() {
+  if (live) { liveWrapUp(); return; }
   stopListening();
   setInputs(false);
   const go = () => busy ? setTimeout(go, 500)
@@ -1475,6 +1494,246 @@ function speakQueued(text) {
   });
 }
 
+// =====================================================================
+// ⚡ Gemini Live: 목소리를 바로 듣고 목소리로 바로 대답 (지금은 Sally·Kim만 기본으로 켜짐)
+// 마이크 → 16kHz PCM → 웹소켓 → 24kHz PCM 재생. 자막(받아 적은 글)으로 기록·통계를 남김.
+// =====================================================================
+const LIVE_MAX_MIN = 14;   // Live 음성 대화는 한 번에 15분까지라 여유를 둠
+const DEFAULT_LIVE = { lucy: false, leo: false, sally: true, kim: true };
+const LIVE_VOICES = { emma: "Aoede", sofia: "Zephyr", olivia: "Leda", amelia: "Kore", mia: "Sulafat",
+  noah: "Puck", marcus: "Charon", jack: "Fenrir", harry: "Orus", liam: "Achird" };
+const ACCENT = { "en-US": "an American", "en-GB": "a British", "en-AU": "an Australian" };
+function liveOn(k) { const a = store.getJSON("c_config", {}).live || {}; return k in a ? !!a[k] : !!DEFAULT_LIVE[k]; }
+function useLive() { return !!(kidId && liveOn(kidId) && window.WebSocket && navigator.mediaDevices && window.AudioContext); }
+
+let live = null;   // 진행 중인 Live 대화
+
+function b64FromBytes(u8) { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); }
+function bytesFromB64(b) { const s = atob(b), u8 = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u8[i] = s.charCodeAt(i); return u8; }
+
+function liveSystem() {
+  const accent = buddy.id === "liam" ? "a Canadian" : (ACCENT[buddy.lang] || "an American");
+  return kid.prompt + buddyPrompt() + " Speak with " + accent + " accent." +
+    "\n\n" + LEVEL_GUIDE[kidLevel(kidId)] + " Follow this level for every reply. If they clearly struggle, make the next reply a little easier." +
+    "\n\nToday's topic: " + topic.title + ". " + topic.hint + " Stay mostly on this topic, but it's okay to follow their interest." +
+    "\n\nCONVERSATION PLAN (one step per reply, wait for their answer each time): " +
+    "1) Say hi, tell your name and where you live in one short sentence, and ask their name. " +
+    "2) Say nice to meet you, " + kid.name + ", and ask how they are today. " +
+    "3) React in a few words, then ask one small-talk question: \"" + iceQ + "\" " +
+    "4) Then move to today's topic" + (topic.id === "random" ? ": ask what they want to talk about." : " and ask one question about it.") +
+    " After that, keep the conversation going naturally. This is a spoken voice conversation: keep replies short (1-3 sentences), natural, and never read out lists or symbols." +
+    COMMON_RULES.replace("SAFETY_RULE", kid.adult ? ADULT_SAFETY : KID_SAFETY);
+}
+
+async function liveSocketUrl() {
+  const model = store.get("liveModel") || "gemini-3.8-live", key = store.get("geminiKey");
+  const host = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.";
+  return [
+    host + "BidiGenerateContent?key=" + encodeURIComponent(key),   // 1차: 키로 바로
+    async () => {                                                    // 2차: 키로 일회용 토큰을 받아서
+      const r = await fetch("https://generativelanguage.googleapis.com/v1beta/auth_tokens", {
+        method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+        body: JSON.stringify({ uses: 1, expireTime: new Date(Date.now() + 30 * 60000).toISOString(), newSessionExpireTime: new Date(Date.now() + 2 * 60000).toISOString() })
+      });
+      const j = await r.json(); if (!r.ok || !j.name) throw new Error((j.error && j.error.message) || "token " + r.status);
+      return host + "BidiGenerateContentConstrained?access_token=" + encodeURIComponent(j.name);
+    }
+  ].map(x => ({ x, model }));
+}
+
+function openLiveSocket(url, model) {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(url);
+    let done = false;
+    const fail = why => { if (!done) { done = true; try { ws.close(); } catch (e) {} reject(new Error(why)); } };
+    const t = setTimeout(() => fail("timeout"), 12000);
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ setup: {
+        model: "models/" + model,
+        generationConfig: { responseModalities: ["AUDIO"],
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: LIVE_VOICES[buddy.id] || "Aoede" } } } },
+        systemInstruction: { parts: [{ text: liveSystem() }] },
+        inputAudioTranscription: {}, outputAudioTranscription: {},
+        realtimeInputConfig: { automaticActivityDetection: {
+          silenceDurationMs: kid.adult ? 1100 : 900, prefixPaddingMs: 200, endOfSpeechSensitivity: "END_SENSITIVITY_LOW" } }
+      } }));
+    };
+    ws.onmessage = async ev => {
+      const m = await parseLiveMsg(ev.data);
+      if (m && m.setupComplete && !done) { done = true; clearTimeout(t); ws.onmessage = null; resolve(ws); }
+    };
+    ws.onclose = ev => { clearTimeout(t); fail("closed " + ev.code + (ev.reason ? ": " + ev.reason : "")); };
+    ws.onerror = () => {};
+  });
+}
+async function parseLiveMsg(data) {
+  try { return JSON.parse(typeof data === "string" ? data : await (data.text ? data.text() : new Response(data).text())); }
+  catch (e) { return null; }
+}
+
+async function startLive() {
+  // 버튼을 누른 순간 소리·마이크 준비 (휴대폰은 누른 직후에만 소리를 켤 수 있음)
+  const L = live = { ws: null, muted: false, ending: false, userText: "", aiText: "", aiBubble: null, turnAudio: [],
+    sources: [], playEnd: 0, outCtx: new AudioContext({ sampleRate: 24000 }), inCtx: null, stream: null, node: null, started: false };
+  setInputs(false); setStatus("⚡ Connecting...");
+  $("micBtn").textContent = "🎙️";
+  try {
+    L.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+  } catch (e) { return liveFallback("마이크 권한이 필요해요 (" + e.name + ")"); }
+  if (live !== L) return;
+  let ws = null, lastErr = "";
+  for (const { x, model } of await liveSocketUrl()) {
+    try { ws = await openLiveSocket(typeof x === "function" ? await x() : x, model); break; }
+    catch (e) { lastErr = e.message; }
+    if (live !== L) return;
+  }
+  if (!ws) return liveFallback("Live 연결 실패: " + lastErr);
+  if (live !== L) { try { ws.close(); } catch (e) {} return; }
+  L.ws = ws;
+  ws.onmessage = ev => parseLiveMsg(ev.data).then(m => m && onLiveMsg(L, m));
+  ws.onclose = ev => { if (live === L && !finished) { addMsg("⚠️ Live 연결이 끊겼어요 (" + ev.code + ")", "note"); liveEnd(L); } };
+  await startLiveMic(L);
+  if (live !== L) return;
+  L.started = true;
+  setInputs(true); $("sendBtn").disabled = false;
+  setStatus("🟢 Live — just talk! (🎙️ = mute)");
+  liveSend(L, { clientContent: { turns: [{ role: "user", parts: [{ text: "(Start the conversation now: greet me.)" }] }], turnComplete: true } });
+  history.push({ role: "user", parts: [{ text: "(Start the conversation now: greet me.)" }] });
+}
+
+function liveSend(L, obj) { try { if (L.ws && L.ws.readyState === 1) L.ws.send(JSON.stringify(obj)); } catch (e) {} }
+
+async function startLiveMic(L) {
+  const ctx = L.inCtx = new AudioContext();   // 폰 기본 속도로 받고 16kHz로 직접 줄임 (16kHz를 못 받는 폰 대비)
+  try { await ctx.resume(); await L.outCtx.resume(); } catch (e) {}
+  const code = "class C extends AudioWorkletProcessor{process(i){const c=i[0]&&i[0][0];if(c)this.port.postMessage(c.slice(0));return true}}registerProcessor('cap',C)";
+  await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([code], { type: "application/javascript" })));
+  const src = ctx.createMediaStreamSource(L.stream), node = L.node = new AudioWorkletNode(ctx, "cap");
+  const ratio = ctx.sampleRate / 16000;   // 휴대폰이 16kHz를 못 맞추면 직접 줄임
+  let pend = [];
+  node.port.onmessage = e => {
+    if (live !== L || L.muted) return;
+    // AI가 말하는 동안(+0.3초)은 보내지 않음: 스피커 소리가 다시 들어가 혼자 대화하는 것 방지
+    if (L.outCtx.currentTime < L.playEnd + 0.3) { pend = []; return; }
+    const f = e.data;
+    if (ratio === 1) pend.push(...f);
+    else for (let i = 0; i < Math.floor(f.length / ratio); i++) {   // 구간 평균으로 줄이기
+      const a = Math.floor(i * ratio), b = Math.max(a + 1, Math.floor((i + 1) * ratio));
+      let sum = 0; for (let j = a; j < b; j++) sum += f[j]; pend.push(sum / (b - a));
+    }
+    if (pend.length >= 1600) {   // 0.1초마다 보냄
+      const pcm = new Int16Array(pend.length);
+      for (let i = 0; i < pend.length; i++) { const s = Math.max(-1, Math.min(1, pend[i])); pcm[i] = s < 0 ? s * 0x8000 : s * 0x7fff; }
+      pend = [];
+      liveSend(L, { realtimeInput: { audio: { data: b64FromBytes(new Uint8Array(pcm.buffer)), mimeType: "audio/pcm;rate=16000" } } });
+    }
+  };
+  src.connect(node);
+}
+
+function playPcm(L, b64) {
+  const u8 = bytesFromB64(b64), n = u8.length >> 1, dv = new DataView(u8.buffer);
+  const buf = L.outCtx.createBuffer(1, n, 24000), ch = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) ch[i] = dv.getInt16(i * 2, true) / 32768;
+  const s = L.outCtx.createBufferSource(); s.buffer = buf; s.connect(L.outCtx.destination);
+  const at = Math.max(L.outCtx.currentTime + 0.03, L.playEnd);
+  s.start(at); L.playEnd = at + buf.duration; L.sources.push(s);
+  s.onended = () => { L.sources = L.sources.filter(x => x !== s); };
+}
+function stopPlayback(L) { L.sources.forEach(s => { try { s.stop(); } catch (e) {} }); L.sources = []; L.playEnd = 0; }
+
+// 아이(사용자)가 한 말을 한 줄로 확정
+function commitUser(L) {
+  const t = L.userText.trim(); L.userText = "";
+  if (liveEl) { liveEl.remove(); liveEl = null; }
+  if (!t) return;
+  addMsg(t, "me"); turns++; kidLines.push(t);
+  L.lastMe = $("messages").lastElementChild;
+  history.push({ role: "user", parts: [{ text: t }] });
+}
+function onLiveMsg(L, m) {
+  if (live !== L) return;
+  if (m.goAway) { addMsg("⏳ Live session is ending soon.", "note"); if (!timeUp) { timeUp = true; clearInterval(timerId); liveWrapUp(); } }
+  const sc = m.serverContent; if (!sc) return;
+  if (sc.inputTranscription && sc.inputTranscription.text && L.aiBubble && L.lastMe) {
+    // AI가 이미 대답을 시작한 뒤 늦게 온 받아쓰기 → 방금 한 말에 붙임
+    L.lastMe.textContent += sc.inputTranscription.text;
+    kidLines[kidLines.length - 1] += sc.inputTranscription.text;
+    const hu = history.filter(x => x.role === "user").pop(); if (hu) hu.parts[0].text += sc.inputTranscription.text;
+  } else if (sc.inputTranscription && sc.inputTranscription.text) {
+    L.userText += sc.inputTranscription.text;
+    if (!liveEl) { liveEl = document.createElement("div"); liveEl.className = "msg me live"; $("messages").appendChild(liveEl); }
+    liveEl.textContent = L.userText.trim() + " …"; $("messages").scrollTop = $("messages").scrollHeight;
+  }
+  const parts = (sc.modelTurn && sc.modelTurn.parts) || [];
+  const audio = parts.filter(p => p.inlineData && p.inlineData.data);
+  if (audio.length || (sc.outputTranscription && sc.outputTranscription.text)) {
+    if (L.userText) commitUser(L);
+    if (!L.aiBubble) {
+      const mine = L.turnAudio = [];
+      L.aiBubble = addMsg("", "ai", { replay: () => { stopPlayback(L); L.playEnd = 0; mine.forEach(b => playPcm(L, b)); } });
+      setStatus("🔊 " + buddy.flag + " " + buddy.name + " is talking...");
+    }
+  }
+  audio.forEach(p => { L.turnAudio.push(p.inlineData.data); playPcm(L, p.inlineData.data); });
+  if (sc.outputTranscription && sc.outputTranscription.text) { L.aiText += sc.outputTranscription.text; L.aiBubble.set(L.aiText.trim()); }
+  if (sc.interrupted) stopPlayback(L);
+  if (sc.turnComplete) {
+    const t = L.aiText.trim();
+    if (t) history.push({ role: "model", parts: [{ text: t }] });
+    L.aiText = ""; L.aiBubble = null;
+    if (L.ending) { setTimeout(() => { if (live === L) liveEnd(L); }, Math.max(0, (L.playEnd - L.outCtx.currentTime) * 1000) + 300); }
+    else setStatus(L.muted ? "🔇 Muted — tap 🎙️ to talk" : "🟢 Your turn — just talk!");
+  }
+}
+
+function liveSendTyped(t) {
+  const L = live; if (!L || !L.started) return;
+  if (HANGUL.test(t)) { addMsg(t, "me"); addMsg("🇺🇸 English only! Try saying it in English. 영어로 말해 볼까요?", "note"); return; }
+  if (L.userText) commitUser(L);
+  L.userText = t; commitUser(L);
+  liveSend(L, { clientContent: { turns: [{ role: "user", parts: [{ text: t }] }], turnComplete: true } });
+}
+function liveToggleMute() {
+  const L = live; if (!L) return;
+  L.muted = !L.muted;
+  $("micBtn").textContent = L.muted ? "🔇" : "🎙️";
+  $("micBtn").classList.toggle("listening", !L.muted);
+  setStatus(L.muted ? "🔇 Muted — tap 🎙️ to talk" : "🟢 Live — just talk!");
+}
+function liveWrapUp() {
+  const L = live; if (!L) return;
+  L.ending = true; L.muted = true; setInputs(false);
+  if (L.userText) commitUser(L);
+  const p = "(Time is up. Say a short, happy goodbye to " + kid.name + ", praise their effort, and say let's talk again soon. Do not ask a question.)";
+  history.push({ role: "user", parts: [{ text: p }] });
+  liveSend(L, { clientContent: { turns: [{ role: "user", parts: [{ text: p }] }], turnComplete: true } });
+  setTimeout(() => { if (live === L) liveEnd(L); }, 15000);   // 작별 인사가 안 와도 15초 뒤 마무리
+}
+function liveEnd(L) {
+  if (live !== L) return;
+  if (L.userText) commitUser(L);
+  timeUp = true; clearInterval(timerId);
+  finishSession();   // finishSession → stopChat → stopLive
+}
+function stopLive() {
+  const L = live; if (!L) return;
+  live = null;
+  try { L.ws && L.ws.close(); } catch (e) {}
+  try { L.node && (L.node.port.onmessage = null); } catch (e) {}
+  try { L.stream && L.stream.getTracks().forEach(t => t.stop()); } catch (e) {}
+  try { L.inCtx && L.inCtx.close(); } catch (e) {}
+  setTimeout(() => { try { L.outCtx.close(); } catch (e) {} }, 400);
+  if (liveEl) { liveEl.remove(); liveEl = null; }
+  $("micBtn").textContent = "🎤"; $("micBtn").classList.remove("listening");
+}
+function liveFallback(why) {
+  stopLive();
+  addMsg("⚡ " + why + " → 기본 방식으로 대화할게요.", "note");
+  setInputs(true);
+  greetLocally();
+}
+
 // ---------- 음성 인식 ----------
 // 계속 듣다가 조용해지면(아이 2초, 어른 3초) 보냄. 말하는 동안 받아 적은 글자가 보이고, ✅ Done 으로 바로 보낼 수도 있음.
 // 휴대폰이 중간에 마이크를 끊으면 다시 켜서 이어 붙임.
@@ -1610,7 +1869,10 @@ function startListening(auto) {
 }
 // 듣는 중에 🎤나 ✅를 누르면 바로 보냄
 $("micTestBtn").onclick = micTest;
-$("micBtn").onclick = () => { if (listening) { submitSpeech(); return; } startListening(false); };
+$("micBtn").onclick = () => {
+  if (live) { liveToggleMute(); return; }
+  if (listening) { submitSpeech(); return; } startListening(false);
+};
 $("doneBtn").onclick = () => { if (listening) submitSpeech(); };
 
 // AI가 말을 마치면 자동으로 마이크 켜기 (부모님 화면에서 아이별로 켜고 끔)
@@ -1625,7 +1887,9 @@ function maybeAutoListen() {
 function sendTyped() {
   const t = $("typeInput").value.trim();
   if (!t || busy || timeUp) return;
-  $("typeInput").value = ""; ask(t);
+  $("typeInput").value = "";
+  if (live) { liveSendTyped(t); return; }
+  ask(t);
 }
 $("sendBtn").onclick = sendTyped;
 $("typeInput").addEventListener("keydown", e => { if (e.key === "Enter") sendTyped(); });
@@ -1694,7 +1958,7 @@ function avatar(k, px) {
 $("picSally").innerHTML = avatar("sally", 48);
 document.querySelector('.ptabs button[data-k="sally"]').innerHTML = avatar("sally", 20) + " Sally";
 
-const APP_VERSION = "v20 (11/19 마이크 테스트)";
+const APP_VERSION = "v21 (11/20 Live 대화)";
 $("verLabel").textContent = APP_VERSION; $("verLabel2").textContent = APP_VERSION;
 refreshHome();
 cloudInit();   // 온라인 기록 연결 (실패하면 휴대폰에 저장해 두었다가 다음에 올림)
