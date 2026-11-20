@@ -1569,7 +1569,12 @@ async function startLive(resume) {
   if (live !== L) return;
   L.started = true;
   setInputs(true); $("sendBtn").disabled = false;
-  setStatus("🟢 Live — just talk! (🎙️ = mute)");
+  setStatus("🟢 Live — just talk! 그냥 말하면 돼요");
+  // 10초 동안 마이크에 소리가 전혀 안 들어오면 안내 (권한·다른 앱 사용 등)
+  setTimeout(() => {
+    if (live === L && !L.ending && (L.maxRms || 0) < 0.002)
+      addMsg("🎤 마이크 소리가 안 들어와요. 크롬 주소창 왼쪽 아이콘 → 권한 → 마이크 허용을 확인하고, 다른 앱이 마이크를 쓰고 있지 않은지 봐 주세요.", "note");
+  }, 10000);
   const kick = resume ? "(The connection is back. Continue the conversation.)" : "(Start the conversation now: greet me.)";
   liveSend(L, { clientContent: { turns: [{ role: "user", parts: [{ text: kick }] }], turnComplete: true } });
   history.push({ role: "user", parts: [{ text: kick }] });
@@ -1587,9 +1592,18 @@ async function startLiveMic(L) {
   let pend = [];
   node.port.onmessage = e => {
     if (live !== L || L.muted) return;
+    const f = e.data;
+    // 마이크 소리 크기를 버튼 테두리로 보여 줌 (말하면 초록 테두리가 커짐) + 소리가 아예 안 들어오는지 확인
+    let sq = 0; for (let i = 0; i < f.length; i++) sq += f[i] * f[i];
+    const rms = Math.sqrt(sq / f.length); L.maxRms = Math.max(L.maxRms || 0, rms);
+    const now = performance.now();
+    if (now - (L.lvT || 0) > 100) {
+      L.lvT = now;
+      const talking = L.outCtx.currentTime < L.playEnd + 0.3;
+      $("micBtn").style.boxShadow = talking ? "" : "0 0 0 " + Math.min(22, Math.round(rms * 400)) + "px rgba(59,178,115,.45)";
+    }
     // AI가 말하는 동안(+0.3초)은 보내지 않음: 스피커 소리가 다시 들어가 혼자 대화하는 것 방지
     if (L.outCtx.currentTime < L.playEnd + 0.3) { pend = []; return; }
-    const f = e.data;
     if (ratio === 1) pend.push(...f);
     else for (let i = 0; i < Math.floor(f.length / ratio); i++) {   // 구간 평균으로 줄이기
       const a = Math.floor(i * ratio), b = Math.max(a + 1, Math.floor((i + 1) * ratio));
@@ -1657,7 +1671,7 @@ function onLiveMsg(L, m) {
     if (t) history.push({ role: "model", parts: [{ text: t }] });
     L.aiText = ""; L.aiBubble = null;
     if (L.ending) { setTimeout(() => { if (live === L) liveEnd(L); }, Math.max(0, (L.playEnd - L.outCtx.currentTime) * 1000) + 300); }
-    else setStatus(L.muted ? "🔇 Muted — tap 🎙️ to talk" : "🟢 Your turn — just talk!");
+    else setStatus("🟢 Your turn — just talk!");
   }
 }
 
@@ -1668,12 +1682,12 @@ function liveSendTyped(t) {
   L.userText = t; commitUser(L);
   liveSend(L, { clientContent: { turns: [{ role: "user", parts: [{ text: t }] }], turnComplete: true } });
 }
+// Live에서는 버튼을 누를 필요가 없음 → 눌러도 음소거하지 않고 "그냥 말하면 돼" 안내만
+// (예전처럼 누르고 말하려다 음소거되는 일 방지)
 function liveToggleMute() {
-  const L = live; if (!L) return;
-  L.muted = !L.muted;
-  $("micBtn").textContent = L.muted ? "🔇" : "🎙️";
-  $("micBtn").classList.toggle("listening", !L.muted);
-  setStatus(L.muted ? "🔇 Muted — tap 🎙️ to talk" : "🟢 Live — just talk!");
+  const L = live; if (!L || L.ending) return;
+  setStatus("👂 No need to press — just talk! 그냥 말하면 돼요");
+  $("micBtn").classList.add("nudge"); setTimeout(() => $("micBtn").classList.remove("nudge"), 1200);
 }
 function liveWrapUp() {
   const L = live; if (!L) return;
@@ -1699,7 +1713,7 @@ function stopLive() {
   try { L.inCtx && L.inCtx.close(); } catch (e) {}
   setTimeout(() => { try { L.outCtx.close(); } catch (e) {} }, 400);
   if (liveEl) { liveEl.remove(); liveEl = null; }
-  $("micBtn").textContent = "🎤"; $("micBtn").classList.remove("listening");
+  $("micBtn").textContent = "🎤"; $("micBtn").classList.remove("listening"); $("micBtn").style.boxShadow = "";
 }
 function liveFallback(why, resume) {
   stopLive();
@@ -1895,7 +1909,7 @@ function avatar(k, px) {
 $("picSally").innerHTML = avatar("sally", 48);
 document.querySelector('.ptabs button[data-k="sally"]').innerHTML = avatar("sally", 20) + " Sally";
 
-const APP_VERSION = "v23 (11/20 모델 이름 생략 가능)";
+const APP_VERSION = "v24 (11/20 음소거 없앰·마이크 표시)";
 $("verLabel").textContent = APP_VERSION; $("verLabel2").textContent = APP_VERSION;
 refreshHome();
 cloudInit();   // 온라인 기록 연결 (실패하면 휴대폰에 저장해 두었다가 다음에 올림)
