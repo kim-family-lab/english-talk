@@ -83,6 +83,19 @@
   .ptabs button { min-width: 40%; }
   .lvBtns { display: flex; gap: 10px; margin-top: 10px; }
   .lvBtns button { flex: 1; border: none; border-radius: 12px; padding: 10px; font-size: 16px; font-weight: 700; background: #ece5dc; }
+  .viz { --series-1: #2a78d6; --grid: #ece6de; --ink2: #6f6a63; width: 100%; height: auto; display: block; }
+  .viz .tk { font-size: 10px; fill: var(--ink2); }
+  .viz .lastv { font-size: 12px; font-weight: 700; fill: #333; }
+  .swList h4 { margin: 8px 0 4px; font-size: 15px; }
+  .swList ul { margin: 0; padding-left: 18px; }
+  .swList li { margin: 3px 0; line-height: 1.45; }
+  .aiBtn { margin-top: 12px; width: 100%; border: none; border-radius: 12px; padding: 11px; font-size: 15px; font-weight: 700; background: #e3eefb; color: #1d5fae; }
+  .aiBox { margin-top: 10px; padding: 12px; border-radius: 12px; background: #f7f3ee; white-space: pre-wrap; line-height: 1.55; font-size: 14px; }
+  .atabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .atabs button { border: none; border-radius: 999px; padding: 7px 11px; font-size: 13px; background: #ece5dc; }
+  .atabs button.on { background: #2a78d6; color: #fff; font-weight: 700; }
+  .chartWrap { position: relative; }
+  .ctip { display: none; position: absolute; pointer-events: none; background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 5px 8px; font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.12); white-space: nowrap; }
   #micBtn:disabled { opacity: .45; }
   @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }
   #status { font-size: 15px; color: var(--muted); min-height: 20px; text-align: center; }
@@ -860,6 +873,179 @@ async function showParent(k) {
   else $("pTalks").innerHTML = '<p class="muted">오프라인이라 대화 내용을 불러오지 못했어요.</p>';
 }
 
+// ---------- 분석: 강점·보완점, 분야별 그래프 (부모님 화면) ----------
+const AREAS = [
+  { id: "speak", ico: "🗣️", name: "말하기 양", unit: "번", help: "대화 한 번에 말한 횟수", f: "turns", base: "turns" },
+  { id: "len", ico: "📏", name: "문장 길이", unit: "단어", help: "한 번 말할 때 평균 단어 수", f: "avgWords", base: "words" },
+  { id: "vocab", ico: "📚", name: "어휘", unit: "개", help: "대화 한 번에 처음 쓴 단어 수", f: "newWords", base: "newWords" },
+  { id: "listen", ico: "🎧", name: "듣기", unit: "%", help: "글자를 안 보고 알아들은 비율 (Lv.3부터)", ratio: true },
+  { id: "gram", ico: "✏️", name: "문법", unit: "점", help: "AI가 매긴 문장 정확도 (1~5)", f: "gram", fixed: [1, 5] },
+  { id: "inter", ico: "💬", name: "주고받기", unit: "점", help: "AI가 매긴 대답·질문하기 (1~5)", f: "inter", fixed: [1, 5] },
+  { id: "level", ico: "📈", name: "레벨", unit: "", help: "영어 레벨 변화", step: true }
+];
+let pArea = "speak";
+function areaValue(a, list) {
+  if (a.ratio) {
+    const h = list.reduce((x, s) => x + (s.hidden || 0), 0), sh = list.reduce((x, s) => x + Math.min(s.shown || 0, s.hidden || 0), 0);
+    return h ? Math.round((h - sh) / h * 100) : null;
+  }
+  const v = list.filter(s => typeof s[a.f] === "number");
+  return v.length ? +(v.reduce((x, s) => x + s[a.f], 0) / v.length).toFixed(1) : null;
+}
+// 최근 2주 vs 그 전 2주 (기록이 모자라면 전체를 반으로 나눠 비교)
+function compareHalves(sessions) {
+  const d = today();
+  let recent = sessions.filter(s => dayDiff(s.day, d) < 14), prev = sessions.filter(s => { const n = dayDiff(s.day, d); return n >= 14 && n < 28; });
+  let label = "최근 2주 vs 그 전 2주";
+  if (recent.length < 2 || prev.length < 2) {
+    const h = Math.floor(sessions.length / 2);
+    prev = sessions.slice(0, h); recent = sessions.slice(h); label = "최근 대화 " + recent.length + "번 vs 그 전 " + prev.length + "번";
+  }
+  return { recent, prev, label };
+}
+function strengthsHtml(k) {
+  const s = loadStats(k), K = KIDS[k], all = s.sessions;
+  if (all.length < 4) return "<p class='muted'>대화를 4번 이상 하면 강점과 보완점이 나타나요. (지금 " + all.length + "번)</p>";
+  const { recent, prev, label } = compareHalves(all), good = [], weak = [];
+  const fmt = (a, v) => v + a.unit;
+  AREAS.filter(a => !a.step).forEach(a => {
+    const r = areaValue(a, recent), p = areaValue(a, prev);
+    if (r === null) return;
+    const tag = a.ico + " <b>" + a.name + "</b> ";
+    const ch = p ? (r - p) / p : 0;
+    const big = a.fixed ? Math.abs(r - p) >= 0.4 : Math.abs(ch) >= 0.1;
+    if (p !== null && big && r > p) return good.push(tag + fmt(a, p) + " → " + fmt(a, r) + " · 늘고 있어요");
+    if (p !== null && big && r < p) return weak.push(tag + fmt(a, p) + " → " + fmt(a, r) + " · 조금 줄었어요");
+    if (a.fixed) { if (r >= 4) good.push(tag + fmt(a, r) + " · 잘하고 있어요"); else if (r <= 2.5) weak.push(tag + fmt(a, r) + " · 연습하면 좋아요"); return; }
+    if (a.ratio) { if (r >= 80) good.push(tag + fmt(a, r) + " · 귀로 잘 알아들어요"); else if (r <= 50) weak.push(tag + fmt(a, r) + " · 글자에 많이 의지해요"); return; }
+    const b = K.base && K.base[a.base];
+    if (b && r >= b * 1.2) good.push(tag + fmt(a, r) + " · 기준보다 높아요");
+    else if (b && r < b * 0.8) weak.push(tag + fmt(a, r) + " · 기준보다 낮아요");
+  });
+  const li = x => "<li>" + x + "</li>";
+  return "<p class='muted' style='margin:0 0 8px'>" + label + " 비교</p>" +
+    "<div class='swList'><h4>💪 강점</h4><ul>" + (good.length ? good.map(li).join("") : li("아직 눈에 띄는 변화는 없어요. 꾸준히 하고 있어요.")) + "</ul>" +
+    "<h4>🌱 보완점</h4><ul>" + (weak.length ? weak.map(li).join("") : li("특별히 떨어진 분야가 없어요. 👍")) + "</ul></div>";
+}
+// 그래프 점: 기간이 3주를 넘으면 주(월요일 기준) 평균, 아니면 날짜별
+function areaPoints(k, a) {
+  const s = loadStats(k);
+  if (a.step) {
+    const h = s.levelHist || [];
+    if (!h.length) return [];
+    const pts = h.map(x => ({ day: x.day, v: x.level }));
+    if (pts[pts.length - 1].day !== today()) pts.push({ day: today(), v: pts[pts.length - 1].v, now: true });
+    return pts;
+  }
+  const ses = s.sessions.filter(x => areaValue(a, [x]) !== null);
+  if (!ses.length) return [];
+  const weekly = dayDiff(ses[0].day, ses[ses.length - 1].day) > 21;
+  const keyOf = d => { if (!weekly) return d; const t = new Date(d + "T00:00"); t.setDate(t.getDate() - ((t.getDay() + 6) % 7)); return t.getFullYear() + "-" + String(t.getMonth() + 1).padStart(2, "0") + "-" + String(t.getDate()).padStart(2, "0"); };
+  const groups = new Map();
+  ses.forEach(x => { const key = keyOf(x.day); if (!groups.has(key)) groups.set(key, []); groups.get(key).push(x); });
+  return [...groups].map(([day, list]) => ({ day, v: areaValue(a, list), n: list.length, weekly }));
+}
+function chartSvg(a, pts) {
+  const W = 320, H = 170, L = 34, R = 40, T = 14, B = 26, iw = W - L - R, ih = H - T - B;
+  let lo, hi;
+  if (a.fixed) [lo, hi] = a.fixed;
+  else if (a.ratio) { lo = 0; hi = 100; }
+  else if (a.step) { lo = 1; hi = Math.max(...pts.map(p => p.v), 5); }
+  else { lo = 0; hi = Math.max(...pts.map(p => p.v)) * 1.15 || 1; hi = hi > 10 ? Math.ceil(hi / 5) * 5 : Math.ceil(hi); }
+  const x = i => L + (pts.length === 1 ? iw / 2 : i * iw / (pts.length - 1));
+  const y = v => T + ih - (v - lo) / (hi - lo || 1) * ih;
+  const ticks = a.step ? [...new Set([lo, Math.round((lo + hi) / 2), hi])] : [lo, +((lo + hi) / 2).toFixed(1), hi];
+  const md = d => { const [, m, dd] = d.split("-"); return +m + "/" + +dd; };
+  const xl = [...new Set([0, Math.floor((pts.length - 1) / 2), pts.length - 1])];
+  let path = "";
+  pts.forEach((p, i) => {
+    if (!i) path = "M" + x(i) + " " + y(p.v);
+    else path += a.step ? " H" + x(i) + " V" + y(p.v) : " L" + x(i) + " " + y(p.v);
+  });
+  const last = pts[pts.length - 1];
+  const vtxt = p => (a.step ? "Lv." + p.v : p.v + (a.unit === "%" ? "%" : ""));
+  return "<svg viewBox='0 0 " + W + " " + H + "' class='viz' role='img' aria-label='" + a.name + " 변화 그래프'>" +
+    ticks.map(t => "<line x1='" + L + "' x2='" + (W - R) + "' y1='" + y(t) + "' y2='" + y(t) + "' stroke='var(--grid)' stroke-width='1'/>" +
+      "<text x='" + (L - 6) + "' y='" + (y(t) + 4) + "' text-anchor='end' class='tk'>" + (a.step ? "Lv." + t : t) + "</text>").join("") +
+    xl.map(i => "<text x='" + x(i) + "' y='" + (H - 8) + "' text-anchor='middle' class='tk'>" + (pts[i].now ? "오늘" : md(pts[i].day)) + "</text>").join("") +
+    "<path d='" + path + "' fill='none' stroke='var(--series-1)' stroke-width='2' stroke-linejoin='round' stroke-linecap='round'/>" +
+    pts.map((p, i) => p.now ? "" : "<circle cx='" + x(i) + "' cy='" + y(p.v) + "' r='4' fill='var(--series-1)' stroke='#fff' stroke-width='2'/>").join("") +
+    "<text x='" + (x(pts.length - 1) + 8) + "' y='" + (y(last.v) + 4) + "' class='lastv'>" + vtxt(last) + "</text>" +
+    pts.map((p, i) => "<circle cx='" + x(i) + "' cy='" + y(p.v) + "' r='14' fill='transparent' data-pt='" + i + "'/>").join("") +
+    "</svg>";
+}
+function drawAreaChart(k) {
+  const box = $("pChart");
+  if (!box) return;
+  document.querySelectorAll(".atabs button").forEach(b => b.classList.toggle("on", b.dataset.area === pArea));
+  const a = AREAS.find(x => x.id === pArea), pts = areaPoints(k, a);
+  box._pts = pts; box._area = a;
+  if (!pts.length) {
+    box.innerHTML = "<p class='muted'>" + (a.fixed ? "이 점수는 이번 업데이트 뒤 대화부터 쌓여요." : a.step ? "레벨이 정해지면 그래프가 나와요." : a.ratio ? "Lv." + HIDE_FROM_LEVEL + "부터(글자 숨김) 기록돼요." : "아직 기록이 없어요.") + "</p>";
+    return;
+  }
+  box.innerHTML = "<p class='muted' style='margin:0 0 4px'>" + a.ico + " " + a.help + (pts[0].weekly ? " · 주별 평균" : " · 날짜별") + "</p>" +
+    "<div class='chartWrap'>" + chartSvg(a, pts) + "<div class='ctip' id='pTip'></div></div>";
+}
+async function runAiAnalysis(k) {
+  const s = loadStats(k), K = KIDS[k], box = $("pAi");
+  if (s.sessions.length < 2) { box.style.display = ""; box.textContent = "대화를 조금 더 하면 분석할 수 있어요."; return; }
+  box.style.display = ""; box.textContent = "🤖 분석하는 중... (10초쯤 걸려요)";
+  let talks = [];
+  try {
+    if (await cloudInit()) {
+      const { collection, query, orderBy, limit, getDocs } = fb.fs;
+      const snap = await withTimeout(getDocs(query(collection(fb.db, FAMILY + "/kids/" + k + "/talks"), orderBy("ts", "desc"), limit(6))), 10000);
+      talks = snap.docs.map(d => d.data());
+    }
+  } catch (e) {}
+  const stats = s.sessions.slice(-20).map(x => x.day + " turns " + x.turns + ", avgWords " + x.avgWords + ", newWords " + x.newWords +
+    (x.hidden ? ", text-shown " + (x.shown || 0) + "/" + x.hidden : "") + (x.gram ? ", grammar " + x.gram + "/5" : "") + (x.inter ? ", interaction " + x.inter + "/5" : "")).join("\n");
+  const sample = talks.map(t => "[" + t.day + " · " + t.topic + "]\n" + (t.lines || []).filter(l => l.r === "kid").map(l => "- " + l.t).join("\n") +
+    ((t.mistakes || []).length ? "\nMistakes: " + t.mistakes.map(m => m.said + " -> " + m.better).join("; ") : "")).join("\n\n");
+  const who = K.adult ? "성인 영어 학습자" : (k === "leo" ? "초등학교 3학년" : "초등학교 5학년") + " 아이";
+  const sys = "당신은 한국 가정의 영어 회화 코치입니다. " + who + " '" + K.name + "'의 영어 대화 기록을 보고 " +
+    (K.adult ? "본인" : "부모님") + "에게 한국어로 짧고 따뜻하게 알려 주세요. 현재 레벨 Lv." + kidLevel(k) + ". " +
+    "형식(마크다운 기호 없이):\n강점\n1. ...\n2. ...\n3. ...\n\n보완점\n1. ...\n2. ...\n3. ...\n\n자주 틀리는 표현\n- 틀린 말 → 바른 말 (최대 3개, 없으면 '특별히 없음')\n\n" +
+    (K.adult ? "다음 연습 팁" : "집에서 도와줄 것") + "\n- 구체적인 활동 2가지\n" +
+    "발음은 평가하지 마세요(음성 인식 글자만 있음). 음성 인식 오류로 보이는 것은 실수로 치지 마세요. 전체 600자 이내.";
+  try {
+    const out = await callGemini(sys, [{ role: "user", parts: [{ text: "기록:\n" + stats + "\n\n최근 대화에서 학습자가 한 말:\n" + (sample || "(없음)") }] }],
+      { temperature: 0.4, maxOutputTokens: 900 });
+    const text = out.replace(/\*\*/g, "").replace(/^#+\s*/gm, "").trim();
+    store.setJSON("aiAn_" + k, { at: today(), text });
+    if (pKid === k) box.textContent = text;
+  } catch (e) {
+    if (pKid === k) box.textContent = "분석을 받지 못했어요. 인터넷과 설정의 API 키를 확인해 주세요. (" + e.message + ")";
+  }
+}
+function analysisSectionsHtml(k) {
+  const s = loadStats(k), K = KIDS[k], prevAi = store.getJSON("aiAn_" + k, null);
+  const tabs = AREAS.filter(a => a.id !== "listen" || K.adult || s.sessions.some(x => x.hidden > 0) || kidLevel(k) >= HIDE_FROM_LEVEL);
+  return '<div class="psec"><h3>💪 강점 · 🌱 보완점</h3>' + strengthsHtml(k) +
+      "<button class='aiBtn' data-ai='1'>🤖 AI 분석 받기</button>" +
+      "<div id='pAi' class='aiBox'" + (prevAi ? "" : " style='display:none'") + ">" +
+        (prevAi ? escapeHtml(prevAi.text) + "\n\n(" + prevAi.at + " 분석)" : "") + "</div></div>" +
+    '<div class="psec"><h3>📊 분야별 변화</h3><div class="atabs">' +
+      tabs.map(a => "<button data-area='" + a.id + "'>" + a.ico + " " + a.name + "</button>").join("") +
+      "</div><div id='pChart'></div></div>";
+}
+$("pBody").addEventListener("click", e => {
+  const t = e.target.closest("[data-area]");
+  if (t) { pArea = t.dataset.area; drawAreaChart(pKid); return; }
+  if (e.target.closest("[data-ai]")) { runAiAnalysis(pKid); return; }
+  const pt = e.target.closest("[data-pt]"), tip = $("pTip"), box = $("pChart");
+  if (!tip) return;
+  if (!pt) { tip.style.display = "none"; return; }
+  const p = box._pts[+pt.dataset.pt], a = box._area;
+  const md = p.now ? "오늘" : p.day.split("-").slice(1).map(Number).join("/") + (p.weekly ? " 주" : "");
+  tip.innerHTML = "<b>" + (a.step ? "Lv." + p.v : p.v + a.unit) + "</b><br>" + md + (p.n ? " · 대화 " + p.n + "번" : "");
+  const wrap = tip.parentElement.getBoundingClientRect(), r = pt.getBoundingClientRect();
+  tip.style.display = "block";
+  const left = Math.min(Math.max(r.left - wrap.left + r.width / 2 - tip.offsetWidth / 2, 0), wrap.width - tip.offsetWidth);
+  tip.style.left = left + "px"; tip.style.top = Math.max(r.top - wrap.top - tip.offsetHeight - 2, 0) + "px";
+});
+
 // 레벨 직접 올리기·내리기 (부모님 화면)
 $("pBody").addEventListener("click", e => {
   const b = e.target.closest("[data-lv]");
@@ -904,6 +1090,7 @@ function renderParent(k) {
       " · 한 번에 평균 " + (since7.length ? (since7.reduce((a, x) => a + x.avgWords, 0) / since7.length).toFixed(1) : "-") + "단어" +
       (() => { const hid = since7.reduce((a, x) => a + (x.hidden || 0), 0), sh = since7.reduce((a, x) => a + (x.shown || 0), 0);
         return hid ? " · 글자 보기 " + Math.round(sh / hid * 100) + "% (낮을수록 귀로 알아들음)" : ""; })() + "</p></div>" +
+    analysisSectionsHtml(k) +
     '<div class="psec"><h3>📈 영어 레벨 변화</h3>' +
       "<p style='margin:0 0 8px'>지금 <b>Lv." + kidLevel(k) + "</b>" + (s.level ? "" : " (탐색 중, 시작 레벨)") + " · 범위 1~" + (K.maxLevel || MAX_LEVEL) + "</p>" +
       "<div class='lvBtns'><button data-lv='-1'>⬇ 한 단계 내리기</button><button data-lv='1'>⬆ 한 단계 올리기</button></div>" +
@@ -916,6 +1103,8 @@ function renderParent(k) {
           (x.hidden ? " · 👀 글자 보기 " + x.shown + "/" + x.hidden + " · 🔁 " + (x.replays || 0) : "") + "</li>").join("") + "</ul>"
       : "<p class='muted'>아직 기록이 없어요.</p>") + "</div>" +
     '<div class="psec"><h3>💬 대화 내용</h3><div id="pTalks"><p class="muted">불러오는 중...</p></div></div>';
+  if (!document.querySelector('[data-area="' + pArea + '"]')) pArea = "speak";
+  drawAreaChart(k);
 }
 
 async function loadTalks(k) {
@@ -925,8 +1114,10 @@ async function loadTalks(k) {
     if (pKid !== k) return;
     const rows = snap.docs.map(d => d.data());
     $("pTalks").innerHTML = rows.length ? rows.map(t =>
-      '<details class="talk"><summary>' + escapeHtml(t.day + " · " + t.topic + " · " + "⭐".repeat(t.stars || 0) + " · Lv." + (t.level || "-") + (t.buddy ? " · " + t.buddy : "")) + "</summary>" +
+      '<details class="talk"><summary>' + escapeHtml(t.day + " · " + t.topic + " · " + "⭐".repeat(t.stars || 0) + " · Lv." + (t.level || "-") + (t.buddy ? " · " + t.buddy : "") +
+        (t.gram ? " · 문법 " + t.gram + " · 주고받기 " + (t.inter || "-") : "")) + "</summary>" +
         (t.lines || []).map(l => '<div class="line"><b>' + (l.r === "kid" ? KIDS[k].name : escapeHtml((t.buddy || "Buddy").split(" (")[0])) + ":</b> " + escapeHtml(l.t) + "</div>").join("") +
+        ((t.mistakes || []).length ? '<div class="line"><b>고칠 표현:</b> ' + t.mistakes.map(m => escapeHtml(m.said) + " → <b>" + escapeHtml(m.better) + "</b>").join(" / ") + "</div>" : "") +
         ((t.expressions || []).length ? '<div class="line"><b>오늘의 표현:</b> ' + escapeHtml(t.expressions.join(" / ")) + "</div>" : "") +
       "</details>").join("") : '<p class="muted">아직 저장된 대화가 없어요.</p>';
   } catch (e) {
@@ -1265,7 +1456,8 @@ async function finishSession() {
   if (overLimit) sc.stars = 0;   // 보너스 연습: 별 없음 (레벨 계산에서도 빠짐)
   sc.bonus = overLimit;
   if (!kid.adult) for (let i = 0; i < sc.stars; i++) s.stickers.push({ type: "star", day });
-  s.sessions.push({ day, topic: topic.title, turns: sc.turns, avgWords: sc.avgWords, newWords: sc.newWords, stars: sc.stars,
+  const sesTs = Date.now();
+  s.sessions.push({ ts: sesTs, day, topic: topic.title, turns: sc.turns, avgWords: sc.avgWords, newWords: sc.newWords, stars: sc.stars,
     hidden: aiHidden, shown: showCount, replays: replayCount, ...(sc.bonus ? { bonus: true } : {}) });
   s.words = [...new Set([...s.words, ...sc.fresh])].slice(-3000);
   const lv = updateLevel(kidId, s);
@@ -1277,9 +1469,20 @@ async function finishSession() {
   const newItems = kid.adult ? [] : ITEMS[kidId].filter(x => x.n > before && x.n <= after);
 
   renderResult(sc, firstToday, s, reached, lv, newItems, test);
-  const expressions = await loadExpressions();
+  const ev = await loadExpressions(), expressions = ev.list;
+  // 문법·주고받기 점수를 이번 기록에 붙여 저장 (부모님 화면 분석용)
+  if (!test && (ev.gram || ev.inter)) {
+    const s2 = loadStats(kidId), ses = s2.sessions.find(x => x.ts === sesTs);
+    if (ses) {
+      if (ev.gram) ses.gram = ev.gram;
+      if (ev.inter) ses.inter = ev.inter;
+      if (ev.mistakes.length) ses.mist = ev.mistakes.length;
+      saveStats(kidId, s2);
+    }
+  }
   if (!test) saveTalk(kidId, {
-    ts: Date.now(), day, topic: topic.title, level: kidLevel(kidId), stars: sc.stars, turns: sc.turns,
+    gram: ev.gram || null, inter: ev.inter || null, mistakes: ev.mistakes,
+    ts: sesTs, day, topic: topic.title, level: kidLevel(kidId), stars: sc.stars, turns: sc.turns,
     buddy: buddy.flag + " " + buddy.name + " (" + buddy.from + ")",
     hidden: aiHidden, shown: showCount, replays: replayCount,
     lines: history.filter(m => !m.parts[0].text.startsWith("(")).map(m => ({ r: m.role === "user" ? "kid" : "ai", t: m.parts[0].text })),
@@ -1352,20 +1555,28 @@ function renderResult(sc, firstToday, s, reached, lv, newItems, test) {
 async function loadExpressions() {
   const transcript = history.filter(m => !m.parts[0].text.startsWith("(")).map(m =>
     (m.role === "user" ? kid.name : "Buddy") + ": " + m.parts[0].text).join("\n");
-  const sys = "You help a Korean child review an English conversation. Reply ONLY with JSON: " +
-    "{\"expressions\": [\"...\", \"...\", \"...\"]}. Give 3 short, useful English expressions (max 8 words each) " +
-    "from or related to the conversation, easy enough for a " + (kidId === "leo" ? "3rd" : "5th") + " grader. " +
-    "If the child made a mistake, you may include the correct form. No Korean.";
+  const who = kid.adult ? "an adult Korean learner" : "a Korean child";
+  const sys = "You help " + who + " review an English conversation. The learner is \"" + kid.name + "\". Reply ONLY with JSON: " +
+    "{\"expressions\": [\"...\", \"...\", \"...\"], \"grammar\": 1-5, \"interaction\": 1-5, \"mistakes\": [{\"said\": \"...\", \"better\": \"...\"}]}. " +
+    "expressions: 3 short, useful English expressions (max 8 words each) from or related to the conversation, easy enough for " +
+    (kid.adult ? "an intermediate adult" : "a " + (kidId === "leo" ? "3rd" : "5th") + " grader") + ". " +
+    "grammar: how correct the learner's own sentences were for their age (1 = many errors, 5 = almost none). " +
+    "interaction: how well the learner answered questions, added details and kept the talk going (1 = one-word answers, 5 = asks back and adds ideas). " +
+    "Speech-to-text errors are not the learner's fault; ignore small transcription slips. " +
+    "mistakes: up to 3 real mistakes from the learner's lines with a natural correct version (empty list if none). No Korean.";
   try {
     const out = await callGemini(sys, [{ role: "user", parts: [{ text: transcript || "(short chat)" }] }],
-      { temperature: 0.4, maxOutputTokens: 200, responseMimeType: "application/json" });
-    const list = (JSON.parse(out.replace(/^```(json)?|```$/g, "")).expressions || []).filter(x => !HANGUL.test(x)).slice(0, 3);
-    if (!list.length) throw new Error("empty");
-    $("resWords").innerHTML = list.map(x => "<li>" + escapeHtml(x) + "</li>").join("");
-    return list;
+      { temperature: 0.3, maxOutputTokens: 500, responseMimeType: "application/json" });
+    const j = JSON.parse(out.replace(/^```(json)?|```$/g, ""));
+    const list = (j.expressions || []).filter(x => typeof x === "string" && !HANGUL.test(x)).slice(0, 3);
+    const sc5 = v => { v = Math.round(Number(v)); return v >= 1 && v <= 5 ? v : null; };
+    const mistakes = (j.mistakes || []).filter(m => m && m.said && m.better && !HANGUL.test(m.said + m.better))
+      .slice(0, 3).map(m => ({ said: String(m.said).slice(0, 120), better: String(m.better).slice(0, 120) }));
+    $("resWords").innerHTML = list.length ? list.map(x => "<li>" + escapeHtml(x) + "</li>").join("") : "<li>Great talking today!</li>";
+    return { list, gram: sc5(j.grammar), inter: sc5(j.interaction), mistakes };
   } catch (e) {
     $("resWords").innerHTML = "<li>Great talking today!</li>";
-    return [];
+    return { list: [], gram: null, inter: null, mistakes: [] };
   }
 }
 
@@ -1921,7 +2132,7 @@ function avatar(k, px) {
 $("picSally").innerHTML = avatar("sally", 48);
 document.querySelector('.ptabs button[data-k="sally"]').innerHTML = avatar("sally", 20) + " Sally";
 
-const APP_VERSION = "v25 (11/20 보너스 연습)";
+const APP_VERSION = "v26 (11/21 분석·그래프)";
 $("verLabel").textContent = APP_VERSION; $("verLabel2").textContent = APP_VERSION;
 refreshHome();
 cloudInit();   // 온라인 기록 연결 (실패하면 휴대폰에 저장해 두었다가 다음에 올림)
