@@ -570,7 +570,7 @@ const store = {
 
 // ---------- 상태 ----------
 let kid = null, kidId = null, topic = null, history = [], timeLeft = 0, timerId = null,
-    timeUp = false, finished = false, busy = false, turns = 0, kidLines = [];
+    timeUp = false, goodbyeSent = false, finished = false, busy = false, turns = 0, kidLines = [];
 
 const $ = id => document.getElementById(id);
 function show(id) {
@@ -1188,7 +1188,7 @@ function showTopics(k, fromCloud) {
 
 // ---------- 대화 ----------
 function startChat(t) {
-  topic = t; history = []; timeUp = false; finished = false; turns = 0; kidLines = [];
+  topic = t; history = []; timeUp = false; goodbyeSent = false; finished = false; turns = 0; kidLines = [];
   aiHidden = 0; showCount = 0; replayCount = 0; autoMicBroken = false; liveReconnects = 0;
   buddy = pickBuddy(kidId);
   $("messages").innerHTML = "";
@@ -1376,10 +1376,13 @@ async function ask(text, hidden) {
     if (HANGUL.test(text)) {   // 한글 입력은 AI에게 보내지 않음
       addMsg(text, "me");
       addMsg("🇺🇸 English only! Try saying it in English. 영어로 말해 볼까요?", "note");
+      if (timeUp) sendGoodbye();
       return;
     }
   }
   let ok = false;
+  const sysP = chatSystem() + (timeUp ? GOODBYE_RULE : "");
+  if (timeUp) goodbyeSent = true;
   busy = true; setInputs(false); setStatus("Thinking...");
   if (!hidden) { addMsg(text, "me"); turns++; kidLines.push(text); }
   history.push({ role: "user", parts: [{ text }] });
@@ -1397,7 +1400,7 @@ async function ask(text, hidden) {
     };
     let full;
     try {
-      full = await callGeminiStream(chatSystem(), history, cfg, all => {
+      full = await callGeminiStream(sysP, history, cfg, all => {
         got = true;
         const rest = all.slice(done), re = /[^.!?]*[.!?]+["')\]]*\s+/g;
         let m, used = 0;
@@ -1406,7 +1409,7 @@ async function ask(text, hidden) {
       });
     } catch (e) {
       if (got) throw e;
-      full = await callGemini(chatSystem(), history, cfg);   // 스트리밍이 안 되면 예전 방식으로
+      full = await callGemini(sysP, history, cfg);   // 스트리밍이 안 되면 예전 방식으로
     }
     say(full.slice(done));
     const reply = shown || englishOnly(full || "Sorry, can you say that again?");
@@ -1419,16 +1422,27 @@ async function ask(text, hidden) {
     addMsg("⚠️ 연결 오류: " + err.message, "note");
   }
   busy = false;
-  if (timeUp) finishSession();
+  if (timeUp) { if (goodbyeSent) finishSession(); else sendGoodbye(); }
   else { setInputs(true); setStatus("Tap the mic and talk!"); if (ok) maybeAutoListen(); }
 }
 
+// 시간이 다 되면 바로 끊지 않음: 말하던 문장은 끝까지 듣고, 버디가 끝인사를 한 뒤 마침
+const GOODBYE_RULE = "\n\nTIME IS UP NOW: If the learner just said something, answer it warmly in one short sentence. " +
+  "Then say a short, happy goodbye, praise their effort, and say let's talk again soon. Do NOT ask any question.";
 function wrapUp() {
-  if (live) { liveWrapUp(); return; }
-  stopListening();
+  if (live) { liveSoftEnd(); return; }
   setInputs(false);
-  const go = () => busy ? setTimeout(go, 500)
-    : ask("(Time is up. Say a short, happy goodbye to " + kid.name + ", praise their effort, and say let's talk again tomorrow. Do not ask a question.)", true);
+  if (listening && micText()) {   // 말하는 중 → 문장을 마칠 때까지 기다림 (최대 20초)
+    setStatus("⏳ Time's up — finish your sentence!");
+    setTimeout(() => { if (listening && !finished) submitSpeech(); }, 20000);
+    return;   // 말이 끝나면 submitSpeech → ask가 대답+끝인사를 함
+  }
+  if (listening) stopListening();
+  sendGoodbye();
+}
+function sendGoodbye() {
+  if (finished || goodbyeSent) return;
+  const go = () => busy ? setTimeout(go, 500) : ask("(Time is up. Say goodbye now.)", true);
   go();
 }
 
@@ -1689,7 +1703,7 @@ const LEVEL_MINUTES = { 1: 5, 2: 6, 3: 7, 4: 8, 5: 10 }, ADULT_MINUTES = { 4: 10
 function levelMinutes(k) { const lv = kidLevel(k); return (KIDS[k].adult ? ADULT_MINUTES[lv] || LEVEL_MINUTES[lv] : LEVEL_MINUTES[lv]) || 7; }
 let sesMin = 0;   // 이번 대화의 정해진 시간(분)
 function sessionMinutes(k) { const m = levelMinutes(k); return useLive() ? Math.min(m, LIVE_MAX_MIN) : m; }
-const LIVE_MAX_MIN = 14;   // Live 음성 대화는 한 번에 15분까지라 여유를 둠
+const LIVE_MAX_MIN = 13;   // Live 음성 대화는 한 번에 15분까지 → 끝인사 여유(최대 1분여)를 둠
 const LIVE_VOICES = { emma: "Aoede", sofia: "Zephyr", olivia: "Leda", amelia: "Kore", mia: "Sulafat",
   noah: "Puck", marcus: "Charon", jack: "Fenrir", harry: "Orus", liam: "Achird" };
 const ACCENT = { "en-US": "an American", "en-GB": "a British", "en-AU": "an Australian" };
@@ -1875,7 +1889,7 @@ function commitUser(L) {
 }
 function onLiveMsg(L, m) {
   if (live !== L) return;
-  if (m.goAway) { addMsg("⏳ Live session is ending soon.", "note"); if (!timeUp) { timeUp = true; clearInterval(timerId); liveWrapUp(); } }
+  if (m.goAway) { addMsg("⏳ Live session is ending soon.", "note"); if (!L.ending) { timeUp = true; clearInterval(timerId); liveWrapUp(); } }
   const sc = m.serverContent; if (!sc) return;
   if (sc.inputTranscription && sc.inputTranscription.text && L.aiBubble && L.lastMe) {
     // AI가 이미 대답을 시작한 뒤 늦게 온 받아쓰기 → 방금 한 말에 붙임
@@ -1883,6 +1897,7 @@ function onLiveMsg(L, m) {
     kidLines[kidLines.length - 1] += sc.inputTranscription.text;
     const hu = history.filter(x => x.role === "user").pop(); if (hu) hu.parts[0].text += sc.inputTranscription.text;
   } else if (sc.inputTranscription && sc.inputTranscription.text) {
+    L.heardAt = Date.now();
     L.userText += sc.inputTranscription.text;
     if (!liveEl) { liveEl = document.createElement("div"); liveEl.className = "msg me live"; $("messages").appendChild(liveEl); }
     liveEl.textContent = L.userText.trim() + " …"; $("messages").scrollTop = $("messages").scrollHeight;
@@ -1904,6 +1919,7 @@ function onLiveMsg(L, m) {
     const t = L.aiText.trim();
     if (t) history.push({ role: "model", parts: [{ text: t }] });
     L.aiText = ""; L.aiBubble = null;
+    if (L.softEnd) L.aiDoneAfter = (L.aiDoneAfter || 0) + 1;
     if (L.ending) { setTimeout(() => { if (live === L) liveEnd(L); }, Math.max(0, (L.playEnd - L.outCtx.currentTime) * 1000) + 300); }
     else setStatus("🟢 Your turn — just talk!");
   }
@@ -1923,14 +1939,39 @@ function liveToggleMute() {
   setStatus("👂 No need to press — just talk! 그냥 말하면 돼요");
   $("micBtn").classList.add("nudge"); setTimeout(() => $("micBtn").classList.remove("nudge"), 1200);
 }
+// 시간이 다 되면: 아이가 말하는 중이면 끝까지 듣고, 버디가 대답을 마친 뒤 끝인사 (최대 45초 더)
+function liveSoftEnd() {
+  const L = live; if (!L || L.softEnd || L.ending) return;
+  L.softEnd = Date.now(); L.aiDoneAfter = 0;
+  const check = () => {
+    if (live !== L || L.ending) return;
+    const now = Date.now(), aiBusy = !!L.aiBubble || L.outCtx.currentTime < L.playEnd;
+    const kidTalking = !!L.userText.trim() || now - (L.heardAt || 0) < 1500;
+    const waited = now - L.softEnd;
+    if (waited < 45000 && (aiBusy || (kidTalking && !L.aiDoneAfter && waited < 25000))) {
+      setStatus(kidTalking ? "⏳ Time's up — finish your sentence!" : "⏳ Time's up — " + buddy.name + " will say goodbye");
+      return setTimeout(check, 400);
+    }
+    liveWrapUp();
+  };
+  check();
+}
 function liveWrapUp() {
-  const L = live; if (!L) return;
+  const L = live; if (!L || L.ending) return;
   L.ending = true; L.muted = true; setInputs(false);
   if (L.userText) commitUser(L);
-  const p = "(Time is up. Say a short, happy goodbye to " + kid.name + ", praise their effort, and say let's talk again soon. Do not ask a question.)";
+  const p = "(Time is up. If " + kid.name + " was in the middle of saying something, answer it warmly in one short sentence first. " +
+    "Then say a short, happy goodbye, praise their effort, and say let's talk again soon. Do not ask a question.)";
   history.push({ role: "user", parts: [{ text: p }] });
   liveSend(L, { clientContent: { turns: [{ role: "user", parts: [{ text: p }] }], turnComplete: true } });
-  setTimeout(() => { if (live === L) liveEnd(L); }, 15000);   // 작별 인사가 안 와도 15초 뒤 마무리
+  // 끝인사가 안 오면 20초 뒤 마무리 (말하는 중이면 끝날 때까지 기다림, 최대 40초)
+  const t0 = Date.now(), guard = () => {
+    if (live !== L) return;
+    const talking = !!L.aiBubble || L.outCtx.currentTime < L.playEnd;
+    if (talking && Date.now() - t0 < 40000) return setTimeout(guard, 1000);
+    liveEnd(L);
+  };
+  setTimeout(guard, 20000);
 }
 function liveEnd(L) {
   if (live !== L) return;
@@ -2003,6 +2044,7 @@ function submitSpeech() {
   const t = micText();
   stopListening();
   if (t) ask(t);
+  else if (timeUp) sendGoodbye();
   else setStatus("Tap the mic and talk! 🎤");
 }
 function micFailed(auto, msg) {
@@ -2143,7 +2185,7 @@ function avatar(k, px) {
 $("picSally").innerHTML = avatar("sally", 48);
 document.querySelector('.ptabs button[data-k="sally"]').innerHTML = avatar("sally", 20) + " Sally";
 
-const APP_VERSION = "v28 (11/24 레벨별 대화 시간)";
+const APP_VERSION = "v29 (11/24 끝인사 후 종료)";
 $("verLabel").textContent = APP_VERSION; $("verLabel2").textContent = APP_VERSION;
 refreshHome();
 cloudInit();   // 온라인 기록 연결 (실패하면 휴대폰에 저장해 두었다가 다음에 올림)
