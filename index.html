@@ -396,9 +396,9 @@ const TOPICS_ADULT = [
 const KIDS = {
   lucy: {
     name: "Lucy", emoji: "🐷", color: "var(--lucy)", soft: "var(--lucy-soft)",
-    minutes: 10, rate: 1.0, startLevel: 3,
+    minutes: 5, oldMinutes: 10, rate: 1.0, startLevel: 3,
     // 처음 일주일 기본 기준 (이후엔 최근 평균으로 자동 조정)
-    base: { turns: 10, words: 5, newWords: 5 },
+    base: { turns: 6, words: 5, newWords: 5 },
     prompt: `You are a friendly English conversation buddy for Lucy, a 5th-grade girl in Korea (about 11 years old) who is learning English.
 Talk like a fun, kind friend a little older than her.
 - Ask only one question at a time, and keep the conversation going.
@@ -417,8 +417,8 @@ Talk like a fun, kind friend a little older than her.
   },
   leo: {
     name: "Leo", emoji: "🐱", color: "var(--leo)", soft: "var(--leo-soft)",
-    minutes: 5, rate: 0.85, startLevel: 1,
-    base: { turns: 6, words: 3, newWords: 3 },
+    minutes: 10, oldMinutes: 5, rate: 0.85, startLevel: 1,
+    base: { turns: 10, words: 3, newWords: 3 },
     prompt: `You are a warm, kind English conversation partner for Leo, a 3rd-grade boy in Korea (about 9 years old) who is learning English.
 Talk like a gentle, cheerful teacher.
 - Ask only one question at a time.
@@ -744,8 +744,11 @@ function scoreSession(k, s, lines) {
   if (s.sessions.length >= LEARN_SESSIONS) {
     const recent = s.sessions.slice(-10);
     const avg = f => recent.reduce((a, x) => a + x[f], 0) / recent.length;
+    // 말한 횟수는 대화 시간에 비례하므로 1분당 횟수로 바꿔 지금 시간에 맞춤
+    const minOf = x => x.min || KIDS[k].oldMinutes || KIDS[k].minutes;
+    const perMin = recent.reduce((a, x) => a + x.turns / minOf(x), 0) / recent.length;
     need = {
-      turns: Math.max(b.turns * 0.7, avg("turns")),
+      turns: Math.max(b.turns * 0.7, perMin * sessionMinutes(k)),
       words: Math.max(b.words * 0.7, avg("avgWords")),
       newWords: Math.max(b.newWords * 0.7, avg("newWords"))
     };
@@ -1191,7 +1194,7 @@ function startChat(t) {
   addMsg("Today's buddy: " + buddy.flag + " " + buddy.name + " from " + buddy.from, "note");
   $("micBtn").style.background = kid.color;
   $("timer").style.background = kid.soft;
-  timeLeft = (store.get("testMode") === "1" ? 1 : (useLive() ? Math.min(kid.minutes, LIVE_MAX_MIN) : kid.minutes)) * 60; drawTimer();
+  timeLeft = (store.get("testMode") === "1" ? 1 : sessionMinutes(kidId)) * 60; drawTimer();
   clearInterval(timerId);
   timerId = setInterval(() => {
     timeLeft--; drawTimer();
@@ -1457,7 +1460,7 @@ async function finishSession() {
   sc.bonus = overLimit;
   if (!kid.adult) for (let i = 0; i < sc.stars; i++) s.stickers.push({ type: "star", day });
   const sesTs = Date.now();
-  s.sessions.push({ ts: sesTs, day, topic: topic.title, turns: sc.turns, avgWords: sc.avgWords, newWords: sc.newWords, stars: sc.stars,
+  s.sessions.push({ ts: sesTs, min: sessionMinutes(kidId), day, topic: topic.title, turns: sc.turns, avgWords: sc.avgWords, newWords: sc.newWords, stars: sc.stars,
     hidden: aiHidden, shown: showCount, replays: replayCount, ...(sc.bonus ? { bonus: true } : {}) });
   s.words = [...new Set([...s.words, ...sc.fresh])].slice(-3000);
   const lv = updateLevel(kidId, s);
@@ -1678,6 +1681,7 @@ function speakQueued(text) {
 // ⚡ Gemini Live: 목소리를 바로 듣고 목소리로 바로 대답 (모든 사람)
 // 마이크 → 16kHz PCM → 웹소켓 → 24kHz PCM 재생. 자막(받아 적은 글)으로 기록·통계를 남김.
 // =====================================================================
+function sessionMinutes(k) { return useLive() ? Math.min(KIDS[k].minutes, LIVE_MAX_MIN) : KIDS[k].minutes; }
 const LIVE_MAX_MIN = 14;   // Live 음성 대화는 한 번에 15분까지라 여유를 둠
 const LIVE_VOICES = { emma: "Aoede", sofia: "Zephyr", olivia: "Leda", amelia: "Kore", mia: "Sulafat",
   noah: "Puck", marcus: "Charon", jack: "Fenrir", harry: "Orus", liam: "Achird" };
@@ -2132,7 +2136,7 @@ function avatar(k, px) {
 $("picSally").innerHTML = avatar("sally", 48);
 document.querySelector('.ptabs button[data-k="sally"]').innerHTML = avatar("sally", 20) + " Sally";
 
-const APP_VERSION = "v26 (11/21 분석·그래프)";
+const APP_VERSION = "v27 (11/24 Leo 10분·Lucy 5분)";
 $("verLabel").textContent = APP_VERSION; $("verLabel2").textContent = APP_VERSION;
 refreshHome();
 cloudInit();   // 온라인 기록 연결 (실패하면 휴대폰에 저장해 두었다가 다음에 올림)
